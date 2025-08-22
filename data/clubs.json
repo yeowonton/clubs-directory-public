@@ -1,0 +1,26 @@
+{
+  "clubs": [
+    {
+      "id": 1,
+      "name": "Science Club",
+      "subject": "STEM",
+      "meeting_time": "Wednesday after school",
+      "prerequisites": "",
+      "description": "Experiments, competitions, and guest speakers.",
+      "status": "approved",
+      "subfield": ["Biology", "Physics"],
+      "meeting_days": ["Wednesday"]
+    },
+    {
+      "id": 2,
+      "name": "Art Club",
+      "subject": "Arts",
+      "meeting_time": "Friday at lunch",
+      "prerequisites": "",
+      "description": "Painting, drawing, and school exhibits.",
+      "status": "approved",
+      "subfield": ["Drawing"],
+      "meeting_days": ["Friday"]
+    }
+  ]
+}

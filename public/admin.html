@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Admin Portal</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        display: ['"Playfair Display"', 'serif'],
+      },
+      colors: {
+        brand:'#e91e63', brand600:'#d81b60', brand700:'#c2185b'
+      }
+    }
+  }
+};
+</script>
+
+<!-- Fancy title font -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700..900&display=swap" rel="stylesheet" />
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#e91e63">
+</head>
+<body class="bg-white text-black">
+<header class="relative text-white border-b-4 border-brand bg-gradient-to-r from-black via-neutral-900 to-black">
+  <div class="pointer-events-none absolute inset-0 opacity-20"
+       style="background-image: radial-gradient(600px 200px at 50% -40px, rgba(233,30,99,.25), transparent);"></div>
+  <div class="max-w-6xl mx-auto flex items-center justify-center py-7 px-4">
+    <!-- Logo (left, crimson border) -->
+    <div class="absolute left-4 top-1/2 -translate-y-1/2">
+      <a href="./index.html" aria-label="Home" class="pointer-events-auto">
+        <img src="/logo.jpg" alt="Troy High Logo"
+             class="w-16 h-16 sm:w-20 sm:h-20 rounded-xl border object-cover"
+             style="border-color:#dc143c" />
+      </a>
+    </div>
+    <!-- Centered fancy title -->
+    <div class="text-center">
+      <h1 class="font-extrabold text-3xl sm:text-4xl font-display bg-gradient-to-r from-brand to-brand700 bg-clip-text text-transparent">
+        Admin Portal
+      </h1>
+      <p class="opacity-90 mt-1 text-sm sm:text-base">Manage clubs in the database</p>
+    </div>
+  </div>
+</header>
+
+<nav class="bg-neutral-100 border-b border-neutral-300 flex flex-wrap gap-4 justify-center px-4 py-2">
+  <a class="font-bold hover:text-brand" href="./index.html">All Clubs</a>
+  <a class="font-bold hover:text-brand" href="./presidents.html">President Submission</a>
+  <a class="font-bold hover:text-brand" href="./admin.html">Admin</a>
+</nav>
+
+<main class="max-w-6xl mx-auto p-5">
+  <form class="bg-neutral-50 border border-neutral-300 rounded-xl p-4" id="adminLogin">
+    <label class="font-bold">Commissioner Code</label>
+    <input name="code" placeholder="Enter admin code" required class="border border-neutral-300 rounded-lg px-3 py-2 mt-1 w-full sm:w-80" />
+    <button class="mt-3 bg-brand text-white rounded-lg px-3 py-2 font-bold hover:bg-brand600" type="submit">Enter</button>
+  </form>
+
+  <section id="adminPanel" class="hidden mt-6">
+    <h2 class="text-xl font-extrabold my-3 border-l-4 border-brand pl-3 font-display">Clubs</h2>
+    <div class="overflow-x-auto border border-neutral-300 rounded-xl">
+      <table class="min-w-full text-sm">
+        <thead class="bg-neutral-50">
+          <tr class="text-left">
+            <th class="px-3 py-2 border-b">Club</th>
+            <th class="px-3 py-2 border-b">Club Password</th>
+            <th class="px-3 py-2 border-b">Website</th>
+            <th class="px-3 py-2 border-b">Days</th>
+            <th class="px-3 py-2 border-b">Status</th>
+            <th class="px-3 py-2 border-b">Description</th>
+            <th class="px-3 py-2 border-b">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="adminTableBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="text-center text-neutral-600 mt-10 relative">
+    <a class="text-brand font-bold" href="https://troywebdev.com" target="_blank" rel="noopener">Troy Web Dev</a> •
+    <a class="underline" href="mailto:yeowonyoon0109@gmail.com">yeowonyoon0109@gmail.com</a>
+    <span class="invisible absolute -bottom-2 left-1/2 -translate-x-1/2 text-[10px] select-none">made by Yeowon Yoon</span>
+  </footer>
+</main>
+
+<script type="module">
+  import { initAdmin } from './app.js';
+  initAdmin();
+</script>
+</body>
+</html>
