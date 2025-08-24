@@ -734,9 +734,19 @@ app.post('/api/presidents/submit', async (req, res) => {
 /* ---------------- Start ---------------- */
 console.log('[server] publicDir =', publicDir);
 console.log('[server] index exists =', fs.existsSync(path.join(publicDir, 'index.html')));
-app.listen(port, () => {
-  console.log(`Server running: http://localhost:${port}`);
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('Dev (live reload): http://localhost:5173');
-  }
+
+const host = '0.0.0.0';           // IMPORTANT for containers
+app.listen(port, host, () => {
+  console.log(`Server running: http://${host}:${port}`);
 });
+
+// optional: log if Railway stops us
+process.on('SIGTERM', () => {
+  console.log('[server] got SIGTERM (likely healthcheck failed or redeploy) – shutting down…');
+  process.exit(0);
+});
+process.on('SIGINT', () => {
+  console.log('[server] got SIGINT – shutting down…');
+  process.exit(0);
+});
+
