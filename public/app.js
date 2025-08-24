@@ -1,5 +1,9 @@
-/* Shared utilities + page initializers */
-const API_BASE = location.origin.replace(/\/$/, "");
+/* ------------------ Shared utilities + page initializers ------------------ */
+// If hosted under /club-directory (Cloudflare Worker path), prefix API calls.
+const PREFIX = location.pathname.startsWith('/club-directory') ? '/club-directory' : '';
+const API_BASE = PREFIX || location.origin.replace(/\/$/, "");
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
 async function fetchText(url, opts = {}) {
   const r = await fetch(url, { headers: { "Content-Type": "application/json", ...(opts.headers||{}) }, ...opts });
   const t = await r.text();
@@ -9,18 +13,24 @@ function normalizeWebsiteUrl(url) {
   if (!url) return "";
   const u = String(url).trim();
   if (/^https?:\/\//i.test(u)) return u;
+  if (u.startsWith('//')) return 'https:' + u;
   if (u.includes(".") || u.startsWith("www.")) return "https://" + u.replace(/^\/+/, "");
   return u;
 }
 
-/* ---------- Pastel palettes ---------- */
+/* ------------------------------ Pastel palettes ------------------------------ */
 const FIELD_PALETTE = {
-  "STEM":              ["bg-sky-50","border-sky-200","text-sky-700"],
-  "Humanities":        ["bg-amber-50","border-amber-200","text-amber-700"],
-  "Arts":              ["bg-fuchsia-50","border-fuchsia-200","text-fuchsia-700"],
+  "STEM": ["bg-sky-50","border-sky-200","text-sky-700"],
+  "Humanities": ["bg-amber-50","border-amber-200","text-amber-700"],
+  "Arts / Culture": ["bg-fuchsia-50","border-fuchsia-200","text-fuchsia-700"],
+  "Social Impact / Service": ["bg-orange-50","border-orange-200","text-orange-700"],
+  "Sports & Wellness": ["bg-emerald-50","border-emerald-200","text-emerald-700"],
+  "Faith / Identity / Other": ["bg-slate-50","border-slate-200","text-slate-700"],
+  // legacy back-compat
+  "Arts": ["bg-fuchsia-50","border-fuchsia-200","text-fuchsia-700"],
   "Community Service": ["bg-orange-50","border-orange-200","text-orange-700"],
-  "Sports":            ["bg-emerald-50","border-emerald-200","text-emerald-700"],
-  "Other":             ["bg-slate-50","border-slate-200","text-slate-700"]
+  "Sports": ["bg-emerald-50","border-emerald-200","text-emerald-700"],
+  "Other": ["bg-slate-50","border-slate-200","text-slate-700"]
 };
 const CAT_PALETTE = {
   "competition": ["bg-indigo-50","border-indigo-200","text-indigo-700"],
@@ -31,12 +41,31 @@ const CAT_PALETTE = {
   "outreach":    ["bg-violet-50","border-violet-200","text-violet-700"]
 };
 const SUB_PALETTE = {
-  "Biology":                   ["bg-emerald-50","border-emerald-200","text-emerald-700"],
-  "Chemistry":                 ["bg-lime-50","border-lime-200","text-lime-700"],
-  "Physics / Engineering":     ["bg-orange-50","border-orange-200","text-orange-700"],
-  "Computer Science / Tech":   ["bg-purple-50","border-purple-200","text-purple-700"],
-  "Math / Data":               ["bg-sky-50","border-sky-200","text-sky-700"],
-  "Medicine & Health":         ["bg-pink-50","border-pink-200","text-pink-700"]
+  "Biology":                 ["bg-emerald-50","border-emerald-200","text-emerald-700"],
+  "Chemistry":               ["bg-lime-50","border-lime-200","text-lime-700"],
+  "Physics / Engineering":   ["bg-orange-50","border-orange-200","text-orange-700"],
+  "Computer Science / Tech": ["bg-purple-50","border-purple-200","text-purple-700"],
+  "Math / Data":             ["bg-sky-50","border-sky-200","text-sky-700"],
+  "Medicine & Health":       ["bg-pink-50","border-pink-200","text-pink-700"]
+};
+const CATEGORY_KEY_TO_DISPLAY = {
+  competition: "Competition-based",
+  activity: "Activity-based",
+  community: "Community Service–based",
+  research: "Research / Academic",
+  advocacy: "Awareness / Advocacy",
+  outreach: "Outreach / Teaching"
+};
+const CATEGORY_DISPLAY_TO_KEY = Object.fromEntries(
+  Object.entries(CATEGORY_KEY_TO_DISPLAY).map(([k,v])=>[v,k])
+);
+const FIELD_SYNONYMS = {
+  "STEM": ["STEM"],
+  "Humanities": ["Humanities"],
+  "Arts / Culture": ["Arts / Culture","Arts"],
+  "Social Impact / Service": ["Social Impact / Service","Community Service"],
+  "Sports & Wellness": ["Sports & Wellness","Sports"],
+  "Faith / Identity / Other": ["Faith / Identity / Other","Faith / Identity","Other"]
 };
 
 const cls = (...xs) => xs.filter(Boolean).join(" ");
@@ -46,18 +75,27 @@ function pastelBadge(text, palette){
 }
 const chip  = (text) => `<span class="px-2 py-0.5 rounded-full bg-neutral-100 border border-neutral-300 text-xs">${text}</span>`;
 
-/* ---------- INDEX PAGE ---------- */
+/* --------------------------------- INDEX PAGE --------------------------------- */
 export function initIndex() {
   const clubList = document.getElementById("clubList");
   const resultsCount = document.getElementById("resultsCount");
-  const search = document.getElementById("search");
 
-  const subject = document.getElementById("subject");
+  const search   = document.getElementById("search");
+  const subject  = document.getElementById("subject");   // Field / Focus
+  const category = document.getElementById("category");  // Category dropdown
   const subfield = document.getElementById("subfield");
   const subfieldWrap = document.getElementById("subfieldWrap");
 
+  // STEM subfields (mirror presidents form)
   const subfieldsBySubject = {
-    "STEM": ["Biology","Chemistry","Physics","Computer Science","Math","Engineering","Environmental Sci"]
+    "STEM": [
+      "Biology",
+      "Chemistry",
+      "Physics / Engineering",
+      "Computer Science / Tech",
+      "Math / Data",
+      "Medicine & Health"
+    ]
   };
 
   function showStemSubfieldsIfNeeded() {
@@ -68,15 +106,19 @@ export function initIndex() {
   function populateSubfields() {
     if (!subfield) return;
     const opts = subfieldsBySubject["STEM"] || [];
-    subfield.innerHTML = `<option value="">STEM Subfield (all)</option>` + opts.map(x=>`<option>${x}</option>`).join("");
+    subfield.innerHTML = `<option value="">All Subfields</option>` + opts.map(x=>`<option>${x}</option>`).join("");
   }
 
   subject?.addEventListener("change", ()=>{ showStemSubfieldsIfNeeded(); render(); });
   subfield?.addEventListener("change", render);
+  category?.addEventListener("change", render);
+  search?.addEventListener("input", render);
+
   populateSubfields();
   showStemSubfieldsIfNeeded();
 
   const dayBoxes = [...document.querySelectorAll('input[name="days"]')];
+  dayBoxes.forEach(x => x.addEventListener('change', render));
   const getSet = (nodes) => new Set(nodes.filter(x=>x.checked).map(x=>x.value));
 
   async function load() {
@@ -92,23 +134,45 @@ export function initIndex() {
     }
   }
 
+  function fieldMatchesSelected(selectedField, clubFieldsRaw, legacySubject) {
+    if (!selectedField) return true;
+    const synonyms = new Set(FIELD_SYNONYMS[selectedField] || [selectedField]);
+    const clubFields = (Array.isArray(clubFieldsRaw) && clubFieldsRaw.length > 0)
+      ? clubFieldsRaw
+      : (legacySubject ? [legacySubject] : []);
+    return clubFields.some(f => synonyms.has(f));
+  }
+
   function render() {
     if (!window.__clubs) return;
-    const q = (search?.value || '').trim().toLowerCase();
-    const s = subject?.value || "";
-    const sf = subfield?.value || "";
+
+    const q  = (search?.value || '').trim().toLowerCase();
+    const s  = subject?.value || "";  // display field label
+    const sf = subfield?.value || ""; // subfield label
     const fDays = getSet(dayBoxes);
 
-    const filtered = (window.__clubs||[]).filter(c => {
-      const txt = `${c.name} ${c.description} ${(c.fields||[]).join(" ")} ${(c.categories||[]).join(" ")} ${(c.subfield||[]).join(" ")} ${(c.prerequisites||'')}`.toLowerCase();
-      const matchesQ = !q || txt.includes(q);
+    const catDisplay = category?.value || "";
+    const catKey = CATEGORY_DISPLAY_TO_KEY[catDisplay] || "";
 
-      const clubSubject = (c.fields && c.fields[0]) || c.subject;
-      const matchesS  = !s  || clubSubject === s;
+    const filtered = (window.__clubs||[]).filter(c => {
+      const catKeys = (c.categories || []);
+      const catLabels = catKeys.map(k => CATEGORY_KEY_TO_DISPLAY[k] || k);
+
+      const txt = [
+        c.name, c.description,
+        ...(c.fields||[]), c.subject || '',
+        ...(c.subfield||[]),
+        ...catKeys, ...catLabels,
+        c.prerequisites || '', c.meeting_room || ''
+      ].join(' ').toLowerCase();
+
+      const matchesQ = !q || txt.includes(q);
+      const matchesField = fieldMatchesSelected(s, c.fields, c.subject);
       const matchesSf = !sf || (c.subfield||[]).includes(sf);
       const matchesDays = fDays.size===0 || (c.meeting_days||[]).some(d => fDays.has(d));
+      const matchesCat = !catKey || (c.categories||[]).includes(catKey);
 
-      return matchesQ && matchesS && matchesSf && matchesDays;
+      return matchesQ && matchesField && matchesSf && matchesDays && matchesCat;
     });
 
     if (resultsCount) resultsCount.textContent = `${filtered.length} result${filtered.length===1?'':'s'}`;
@@ -121,7 +185,7 @@ export function initIndex() {
     if (c.meeting_time_type === 'lunch') return 'Lunch';
     if (c.meeting_time_type === 'after_school') {
       return c.meeting_time_range ? `After school (${c.meeting_time_range})` : 'After school';
-      }
+    }
     return '';
   }
 
@@ -133,11 +197,12 @@ export function initIndex() {
 
     const nameHTML = `<h3 class="text-black font-black text-xl sm:text-2xl leading-snug tracking-tight">${c.name}</h3>`;
 
-    const focusVals = (c.fields && c.fields.length ? c.fields : (c.subject ? [c.subject] : []));
+    // Show ALL focuses (fields); fallback to legacy subject if needed
+    const focusVals = (Array.isArray(c.fields) && c.fields.length) ? c.fields : (c.subject ? [c.subject] : []);
     const focusRow = focusVals.map(v => pastelBadge(v, FIELD_PALETTE[v])).join(" ");
 
-    const catVals = (c.categories||[]).map(k => [k, k.charAt(0).toUpperCase()+k.slice(1)]);
-    const catRow  = catVals.map(([k, label]) => pastelBadge(label, CAT_PALETTE[k])).join(" ");
+    const catVals = (c.categories||[]).map(k => [k, CATEGORY_KEY_TO_DISPLAY[k] || k]);
+    const catRow  = catVals.map(([k, labelText]) => pastelBadge(labelText, CAT_PALETTE[k])).join(" ");
 
     const subRow   = (c.subfield||[]).map(v => pastelBadge(v, SUB_PALETTE[v])).join(" ");
 
@@ -147,14 +212,21 @@ export function initIndex() {
       meetingTimeText(c) ? chip(meetingTimeText(c)) : ''
     ].filter(Boolean).join(" ");
 
-    const reqBadges = [
-      c.open_to_all ? pastelBadge('Open', ["bg-emerald-50","border-emerald-200","text-emerald-700"]) : '',
-      c.prereq_required ? pastelBadge('Prereq', ["bg-amber-50","border-amber-200","text-amber-700"]) : ''
-    ].filter(Boolean).join(" ");
-    const prereqText = c.prereq_required && c.prerequisites
-      ? `<div class="text-xs text-neutral-700"><span class="font-semibold">Prereqs:</span> ${c.prerequisites}</div>` : '';
+    const locationRow = c.meeting_room ? `<div class="space-y-1">${label('Location')}<div class="flex flex-wrap gap-2">${chip(c.meeting_room)}</div></div>` : '';
 
-    const desc = c.description || 'No description yet.';
+    const reqChips = [
+      c.volunteer_hours ? pastelBadge('Volunteer Hours', ["bg-emerald-50","border-emerald-200","text-emerald-700"]) : '',
+      c.open_to_all ? pastelBadge('Open to all', ["bg-emerald-50","border-emerald-200","text-emerald-700"]) : '',
+      c.prereq_required ? pastelBadge('Prerequisite', ["bg-amber-50","border-amber-200","text-amber-700"]) : ''
+    ].filter(Boolean).join(" ");
+
+    const prereqDetail = (c.prereq_required && c.prerequisites)
+      ? `<div class="text-xs text-neutral-600 leading-relaxed"><span class="font-semibold">Details:</span> ${esc(c.prerequisites)}</div>`
+      : '';
+
+    // Description with clamp + toggle
+    const fullDesc = c.description || 'No description yet.';
+    const shortDesc = fullDesc.length > 280 ? fullDesc.slice(0, 280) + '…' : fullDesc;
 
     return `
 <article class="bg-white border border-neutral-300 rounded-2xl overflow-hidden transition hover:-translate-y-0.5 hover:shadow-lg">
@@ -169,27 +241,48 @@ export function initIndex() {
       ${catRow   ? `<div class="space-y-1">${label('Categories')}<div class="flex flex-wrap gap-2">${catRow}</div></div>` : ''}
       ${(c.subfield||[]).length ? `<div class="space-y-1">${label('Subfields')}<div class="flex flex-wrap gap-2">${subRow}</div></div>` : ''}
       ${scheduleRow ? `<div class="space-y-1">${label('Schedule')}<div class="flex flex-wrap gap-2">${scheduleRow}</div></div>` : ''}
-      ${reqBadges || prereqText ? `<div class="space-y-1">${label('Requirements')}<div class="flex flex-wrap gap-2">${reqBadges}</div>${prereqText}</div>` : ''}
-      <div class="space-y-1">${label('Description')}<p class="text-neutral-800 leading-relaxed">${desc}</p></div>
+      ${locationRow}
+      ${(reqChips || prereqDetail) ? `<div class="space-y-1">${label('Eligibility & Perks')}<div class="flex flex-wrap gap-2 items-center">${reqChips}</div>${prereqDetail}</div>` : ''}
+      <div class="space-y-1">${label('Description')}
+        <p class="text-neutral-800 leading-relaxed" data-desc-full="${encodeURIComponent(fullDesc)}">
+          ${shortDesc}
+          ${fullDesc.length>280 ? `<button class="ml-1 underline text-brand text-xs" data-more>More</button>` : ''}
+        </p>
+      </div>
     </div>
   </div>
 </article>
 `;
   }
 
-  [search, subject, subfield, ...document.querySelectorAll('input[name="days"]')]
-    .forEach(el => el && el.addEventListener('input', render));
+  // delegate More/Less toggles
+  document.addEventListener('click', (e)=>{
+    const more = e.target.closest('button[data-more]');
+    if (more) {
+      e.preventDefault();
+      const p = more.closest('p');
+      const full = decodeURIComponent(p.getAttribute('data-desc-full') || '');
+      p.innerHTML = `${full} <button class="ml-1 underline text-brand text-xs" data-less>Less</button>`;
+      return;
+    }
+    const less = e.target.closest('button[data-less]');
+    if (less) {
+      e.preventDefault();
+      const p = less.closest('p');
+      const full = decodeURIComponent(p.getAttribute('data-desc-full') || '');
+      const short = full.length > 280 ? full.slice(0,280)+'…' : full;
+      p.innerHTML = `${short} ${full.length>280 ? `<button class="ml-1 underline text-brand text-xs" data-more>More</button>` : ''}`;
+    }
+  });
 
   load();
 }
 
-/* ---------- PRESIDENTS PAGE ---------- */
+/* ------------------------------ PRESIDENTS PAGE ------------------------------ */
 export function initPresidents() {
   const form = document.getElementById('presForm');
   const status = document.getElementById('status');
   const mtRange = document.getElementById('mt_range');
-  const dbgPayload = document.getElementById('debugPayload');
-  const dbgResponse = document.getElementById('debugResponse');
   const desc = document.getElementById('desc');
   const wordCount = document.getElementById('wordCount');
 
@@ -238,21 +331,25 @@ export function initPresidents() {
 
   const updateWords = ()=>{
     const words = (desc?.value?.trim().match(/\S+/g) || []).length;
-    if (wordCount) wordCount.innerHTML = `<span class="font-semibold">${words}</span> / 200 words`;
+    if (wordCount) {
+      wordCount.innerHTML = `<span class="font-semibold">${words}</span> / 200 words`;
+      wordCount.classList.toggle('text-red-600', words > 200);
+    }
     setError('description', words > 200);
   };
   desc?.addEventListener('input', updateWords);
   updateWords();
 
-  const FIELD_PALETTE = {
+  // live pastel highlights (click previews)
+  const FIELD_P = {
     "STEM":["bg-sky-50","border-sky-200","text-sky-700"],
     "Humanities":["bg-amber-50","border-amber-200","text-amber-700"],
-    "Arts":["bg-fuchsia-50","border-fuchsia-200","text-fuchsia-700"],
-    "Community Service":["bg-orange-50","border-orange-200","text-orange-700"],
-    "Sports":["bg-emerald-50","border-emerald-200","text-emerald-700"],
-    "Other":["bg-slate-50","border-slate-200","text-slate-700"]
+    "Arts / Culture":["bg-fuchsia-50","border-fuchsia-200","text-fuchsia-700"],
+    "Social Impact / Service":["bg-orange-50","border-orange-200","text-orange-700"],
+    "Sports & Wellness":["bg-emerald-50","border-emerald-200","text-emerald-700"],
+    "Faith / Identity / Other":["bg-slate-50","border-slate-200","text-slate-700"]
   };
-  const CAT_PALETTE = {
+  const CAT_P = {
     "competition":["bg-indigo-50","border-indigo-200","text-indigo-700"],
     "activity":["bg-teal-50","border-teal-200","text-teal-700"],
     "community":["bg-orange-50","border-orange-200","text-orange-700"],
@@ -260,33 +357,26 @@ export function initPresidents() {
     "advocacy":["bg-rose-50","border-rose-200","text-rose-700"],
     "outreach":["bg-violet-50","border-violet-200","text-violet-700"]
   };
-  const SUB_PALETTE = {
-    "Biology":["bg-emerald-50","border-emerald-200","text-emerald-700"],
-    "Chemistry":["bg-lime-50","border-lime-200","text-lime-700"],
-    "Physics / Engineering":["bg-orange-50","border-orange-200","text-orange-700"],
-    "Computer Science / Tech":["bg-purple-50","border-purple-200","text-purple-700"],
-    "Math / Data":["bg-sky-50","border-sky-200","text-sky-700"],
-    "Medicine & Health":["bg-pink-50","border-pink-200","text-pink-700"]
-  };
+  const SUB_P = SUB_PALETTE;
   const paletteMap = {
-    "field:STEM":FIELD_PALETTE["STEM"],
-    "field:Humanities":FIELD_PALETTE["Humanities"],
-    "field:Arts":FIELD_PALETTE["Arts"],
-    "field:Community Service":FIELD_PALETTE["Community Service"],
-    "field:Sports":FIELD_PALETTE["Sports"],
-    "field:Other":FIELD_PALETTE["Other"],
-    "cat:competition":CAT_PALETTE["competition"],
-    "cat:activity":CAT_PALETTE["activity"],
-    "cat:community":CAT_PALETTE["community"],
-    "cat:research":CAT_PALETTE["research"],
-    "cat:advocacy":CAT_PALETTE["advocacy"],
-    "cat:outreach":CAT_PALETTE["outreach"],
-    "sub:Biology":SUB_PALETTE["Biology"],
-    "sub:Chemistry":SUB_PALETTE["Chemistry"],
-    "sub:Physics / Engineering":SUB_PALETTE["Physics / Engineering"],
-    "sub:Computer Science / Tech":SUB_PALETTE["Computer Science / Tech"],
-    "sub:Math / Data":SUB_PALETTE["Math / Data"],
-    "sub:Medicine & Health":SUB_PALETTE["Medicine & Health"]
+    "field:STEM":FIELD_P["STEM"],
+    "field:Humanities":FIELD_P["Humanities"],
+    "field:Arts / Culture":FIELD_P["Arts / Culture"],
+    "field:Social Impact / Service":FIELD_P["Social Impact / Service"],
+    "field:Sports & Wellness":FIELD_P["Sports & Wellness"],
+    "field:Faith / Identity / Other":FIELD_P["Faith / Identity / Other"],
+    "cat:competition":CAT_P["competition"],
+    "cat:activity":CAT_P["activity"],
+    "cat:community":CAT_P["community"],
+    "cat:research":CAT_P["research"],
+    "cat:advocacy":CAT_P["advocacy"],
+    "cat:outreach":CAT_P["outreach"],
+    "sub:Biology":SUB_P["Biology"],
+    "sub:Chemistry":SUB_P["Chemistry"],
+    "sub:Physics / Engineering":SUB_P["Physics / Engineering"],
+    "sub:Computer Science / Tech":SUB_P["Computer Science / Tech"],
+    "sub:Math / Data":SUB_P["Math / Data"],
+    "sub:Medicine & Health":SUB_P["Medicine & Health"]
   };
   function applyPalette(labelEl, on) {
     const key = labelEl.getAttribute('data-palette');
@@ -314,10 +404,11 @@ export function initPresidents() {
     status.textContent = 'Submitting…';
 
     const freq = form.querySelector('select[name="meeting_frequency"]').value;
-    const timeType = getRadio('meeting_time_type');
-    const days = getCheckedValues('meeting_days');
+    const timeType = (form.querySelector('input[name="meeting_time_type"]:checked')||{}).value || '';
+    const days = [...form.querySelectorAll('input[name="meeting_days"]:checked')].map(x=>x.value);
     const afterRange = form.querySelector('input[name="meeting_time_range"]').value.trim();
-    const words = (document.getElementById('desc')?.value?.trim().match(/\S+/g) || []).length;
+    const words = (desc?.value?.trim().match(/\S+/g) || []).length;
+    const meetingRoomVal = (form.querySelector('input[name="meeting_room"]')?.value || '').trim();
 
     const setErr = (k, s)=>{ const el = form.querySelector(`[data-error="${k}"]`); if (el) el.classList.toggle('hidden', !s); };
     setErr('meeting_frequency', !freq);
@@ -325,8 +416,9 @@ export function initPresidents() {
     setErr('meeting_days', days.length === 0);
     setErr('meeting_time_range', (timeType === 'after_school' && !afterRange));
     setErr('description', words > 200);
+    setErr('meeting_room', !meetingRoomVal);
 
-    const hasError = (!freq || !timeType || days.length===0 || (timeType==='after_school' && !afterRange) || words>200);
+    const hasError = (!freq || !timeType || days.length===0 || (timeType==='after_school' && !afterRange) || !meetingRoomVal || words>200);
     if (hasError) { status.textContent = 'Please complete the required fields.'; return; }
 
     const fd = new FormData(form);
@@ -339,18 +431,19 @@ export function initPresidents() {
       president_submit_password: fd.get('president_submit_password'),
       president_code: fd.get('president_code'),
       website_url,
-      fields: getCheckedValues('fields'),
-      categories: getCheckedValues('categories'),
-      subfields: getCheckedValues('subfields'),
+      fields: [...form.querySelectorAll('input[name="fields"]:checked')].map(x=>x.value),
+      categories: [...form.querySelectorAll('input[name="categories"]:checked')].map(x=>x.value),
+      subfields: [...form.querySelectorAll('input[name="subfields"]:checked')].map(x=>x.value),
       meeting_days: days,
       meeting_frequency: freq,
       meeting_time_type: timeType,
       meeting_time_range: afterRange,
+      meeting_room: meetingRoomVal,
       volunteer_hours: volunteerRadio ? (volunteerRadio.value === 'true') : undefined,
       open_to_all: !!fd.get('open_to_all') || undefined,
       prereq_required: !!fd.get('prereq_required') || undefined,
       prerequisites: (fd.get('prereq_required') ? (fd.get('prerequisites') || '') : '' ),
-      description: (document.getElementById('desc')?.value || '')
+      description: (desc?.value || '')
     };
 
     const dbgPayload = document.getElementById('debugPayload');
@@ -393,8 +486,8 @@ export function initPresidents() {
       document.getElementById('mt_range').classList.add('hidden');
       document.getElementById('prereq_text_wrap')?.classList.add('hidden');
       document.getElementById('stemSubfieldsWrap')?.classList.add('hidden');
-      (function(){ const el = document.getElementById('wordCount'); if (el) el.innerHTML = '<span class="font-semibold">0</span> / 200 words'; })();
-      // reset label colors
+      const wc = document.getElementById('wordCount');
+      if (wc) wc.innerHTML = '<span class="font-semibold">0</span> / 200 words';
       ['#fieldsGroup','#categoriesGroup','#subfieldsGroup'].forEach(w=> {
         document.querySelectorAll(`${w} [data-palette]`).forEach(lbl=>{
           lbl.className = "border cursor-pointer rounded px-2 py-1 flex items-center gap-2 border-neutral-300";
@@ -410,7 +503,7 @@ export function initPresidents() {
   });
 }
 
-/* ---------- ADMIN PAGE ---------- */
+/* ---------------------------------- ADMIN PAGE ---------------------------------- */
 async function sha256HexBrowser(s){
   if (!window.crypto?.subtle) return null;
   const buf = new TextEncoder().encode(String(s));
@@ -486,7 +579,10 @@ export function initAdmin() {
 
   function rowHTML(c){
     const desc = (c.description||'').slice(0,120) + ((c.description||'').length>120?'…':'');
-    const meta = [...(c.fields||[]), ...(c.categories||[])].join(' • ');
+    const meta = [
+      ...(c.fields||[]),
+      ...((c.categories||[]).map(k=>CATEGORY_KEY_TO_DISPLAY[k]||k))
+    ].join(' • ');
     const codeMasked = c.president_code ? '••••••' : '';
     const websiteHref = normalizeWebsiteUrl(c.website_url);
     const website = websiteHref ? `<a class="text-brand underline" href="${websiteHref}" target="_blank" rel="noopener">Open ↗</a>` : '';
@@ -503,6 +599,7 @@ export function initAdmin() {
   </td>
   <td class="px-3 py-2">${website || ''}</td>
   <td class="px-3 py-2">${(c.meeting_days||[]).join(", ")}</td>
+  <td class="px-3 py-2">${c.meeting_room || ''}</td>
   <td class="px-3 py-2">${c.status||'approved'}</td>
   <td class="px-3 py-2">${desc}</td>
   <td class="px-3 py-2">
@@ -532,7 +629,7 @@ export function initAdmin() {
       if (newDesc!==null){
         const r = await fetchText(`${API_BASE}/api/clubs/${id}`, {method:"PATCH", body:JSON.stringify({description:newDesc}), headers});
         if (!r.ok) return alert('Failed to update');
-        tr.querySelectorAll("td")[5].textContent = (newDesc||'').slice(0,120) + ((newDesc||'').length>120?'…':'');
+        tr.querySelectorAll("td")[6].textContent = (newDesc||'').slice(0,120) + ((newDesc||'').length>120?'…':'');
       }
     }
   }

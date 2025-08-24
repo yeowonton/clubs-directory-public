@@ -1,5 +1,3 @@
--- schema.sql (fresh setup)
-
 -- Users
 CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -11,18 +9,18 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS clubs (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
-  subject VARCHAR(100) NOT NULL,                       -- legacy top-level field (we store the first Field here for back-compat)
-  -- Combined/legacy columns (not used by filters but kept for compatibility)
-  club_type VARCHAR(50) DEFAULT NULL,
-  primary_mode VARCHAR(50) DEFAULT NULL,
+  subject VARCHAR(100) NOT NULL,                       -- legacy single Field for back-compat
+  club_type VARCHAR(50) DEFAULT NULL,                  -- legacy (kept for back-compat)
+  primary_mode VARCHAR(50) DEFAULT NULL,               -- legacy (kept for back-compat)
 
-  -- Core flags
   volunteer_hours TINYINT(1) NOT NULL DEFAULT 0,
   meeting_frequency ENUM('weekly','biweekly','monthly','event') DEFAULT NULL,
 
-  -- New meeting time model
   meeting_time_type ENUM('lunch','after_school') DEFAULT NULL,
-  meeting_time_range VARCHAR(100) DEFAULT '',          -- only used when meeting_time_type='after_school'
+  meeting_time_range VARCHAR(100) DEFAULT '',
+
+  meeting_room VARCHAR(50) DEFAULT NULL,               -- NEW: matches server
+  website_url VARCHAR(512) DEFAULT NULL,               -- NEW: matches server
 
   open_to_all TINYINT(1) NOT NULL DEFAULT 1,
   prereq_required TINYINT(1) NOT NULL DEFAULT 0,
@@ -30,12 +28,11 @@ CREATE TABLE IF NOT EXISTS clubs (
 
   description TEXT,
   president_code VARCHAR(255) DEFAULT NULL,
-  status ENUM('pending','approved') NOT NULL DEFAULT 'approved',  -- auto-approve new entries
+  status ENUM('pending','approved') NOT NULL DEFAULT 'approved',
 
   president_id INT,
   CONSTRAINT fk_clubs_president FOREIGN KEY (president_id) REFERENCES users(id) ON DELETE SET NULL,
 
-  -- Presidents can edit by resubmitting with the same (name, president_code)
   CONSTRAINT uq_club_name_code UNIQUE (name, president_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -73,19 +70,18 @@ CREATE TABLE IF NOT EXISTS club_meeting_days (
   CONSTRAINT fk_cmd_day FOREIGN KEY (day_id) REFERENCES meeting_days(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- New multi-select: top-level Fields / Focus Area (STEM, Arts, etc.)
+-- Multi-select: Fields / Focus Area (STEM, Arts, etc.)
 CREATE TABLE IF NOT EXISTS club_fields (
   club_id INT NOT NULL,
-  label VARCHAR(100) NOT NULL,
-  PRIMARY KEY (club_id, label),
+  field_label VARCHAR(100) NOT NULL,   -- matches server
+  PRIMARY KEY (club_id, field_label),
   CONSTRAINT fk_cf_club FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- New multi-select: combined Categories (club type + primary mode)
--- e.g., competition, activity, community, research, advocacy, outreach
+-- Multi-select: Categories (competition, activity, community, research, advocacy, outreach)
 CREATE TABLE IF NOT EXISTS club_categories (
   club_id INT NOT NULL,
-  label VARCHAR(100) NOT NULL,
-  PRIMARY KEY (club_id, label),
+  category VARCHAR(50) NOT NULL,       -- matches server
+  PRIMARY KEY (club_id, category),
   CONSTRAINT fk_cc_club FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

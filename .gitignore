@@ -1,11 +1,5 @@
-# dependencies
 node_modules/
-
-# env & local config
 .env
 *.local
-
-# OS/editor files
 .DS_Store
 .vscode/
-.env
