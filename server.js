@@ -55,11 +55,11 @@ const pool =
   process.env.MYSQL_URL && process.env.MYSQL_URL.trim()
     ? poolFromUrl(process.env.MYSQL_URL)
     : mysql.createPool({
-        host: process.env.MYSQL_HOST,
+        host: process.env.MYSQL_HOST || '127.0.0.1',
         port: Number(process.env.MYSQL_PORT || 3306),
-        user: process.env.MYSQL_USER,
-        password: process.env.MYSQL_PASSWORD,
-        database: process.env.MYSQL_DATABASE,
+        user: process.env.MYSQL_USER || 'root',
+        password: process.env.MYSQL_PASSWORD || '',
+        database: process.env.MYSQL_DATABASE || 'clubs_db',
         waitForConnections: true,
         connectionLimit: 10,
         ssl: process.env.MYSQL_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
@@ -123,125 +123,6 @@ function normalizeWebsiteUrl(url) {
 }
 
 /* ---------------- Schema helpers (idempotent) ---------------- */
-async function ensureColumnIfMissing(table, column, ddl) {
-  const db = process.env.MYSQL_DATABASE || 'clubs_db';
-  const [[col]] = await pool.query(
-    `SELECT COUNT(*) n FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND COLUMN_NAME=?`,
-    [db, table, column]
-  );
-  if (!col.n) {
-    await pool.query(ddl);
-    console.log(`[schema] Added ${table}.${column}`);
-  }
-}
-async function ensureWebsiteColumn() {
-  await ensureColumnIfMissing('clubs', 'website_url', `ALTER TABLE clubs ADD COLUMN website_url VARCHAR(512) DEFAULT NULL`);
-}
-async function ensureMeetingRoomColumn() {
-  await ensureColumnIfMissing('clubs', 'meeting_room', `ALTER TABLE clubs ADD COLUMN meeting_room VARCHAR(50) DEFAULT NULL`);
-}
-async function ensureMeetingDays() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS meeting_days (
-      id INT PRIMARY KEY,
-      name VARCHAR(20) NOT NULL UNIQUE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  `);
-  await pool.query(`
-    INSERT INTO meeting_days (id,name) VALUES
-    (1,'Monday'),(2,'Tuesday'),(3,'Wednesday'),(4,'Thursday'),(5,'Friday')
-    ON DUPLICATE KEY UPDATE name=VALUES(name)
-  `);
-}
-async function ensureSubfieldsBase() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS subfields (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      label VARCHAR(100) NOT NULL UNIQUE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  `);
-}
-async function ensureLinkTables() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS club_subfields (
-      club_id INT NOT NULL,
-      subfield_id INT NOT NULL,
-      PRIMARY KEY (club_id, subfield_id),
-      CONSTRAINT fk_cs_club FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE,
-      CONSTRAINT fk_cs_sub FOREIGN KEY (subfield_id) REFERENCES subfields(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  `);
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS club_meeting_days (
-      club_id INT NOT NULL,
-      day_id INT NOT NULL,
-      PRIMARY KEY (club_id, day_id),
-      CONSTRAINT fk_cmd_club FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE,
-      CONSTRAINT fk_cmd_day FOREIGN KEY (day_id) REFERENCES meeting_days(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  `);
-}
-async function ensureClubCategories() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS club_categories (
-      club_id INT NOT NULL,
-      category VARCHAR(50) NOT NULL,
-      PRIMARY KEY (club_id, category),
-      CONSTRAINT fk_cc_club FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  `);
-}
-async function ensureClubFields() {
-  const db = process.env.MYSQL_DATABASE || 'clubs_db';
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS club_fields (
-      club_id INT NOT NULL,
-      field_label VARCHAR(100) NOT NULL,
-      PRIMARY KEY (club_id, field_label),
-      CONSTRAINT fk_cf_club FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  `);
-
-  // Migrate legacy column names to field_label if needed
-  const [[hasFieldLabel]] = await pool.query(
-    `SELECT COUNT(*) n FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA=? AND TABLE_NAME='club_fields' AND COLUMN_NAME='field_label'`,
-    [db]
-  );
-  if (!hasFieldLabel.n) {
-    const [[hasField]] = await pool.query(
-      `SELECT COUNT(*) n FROM INFORMATION_SCHEMA.COLUMNS
-       WHERE TABLE_SCHEMA=? AND TABLE_NAME='club_fields' AND COLUMN_NAME='field'`,
-      [db]
-    );
-    const [[hasLabel]] = await pool.query(
-      `SELECT COUNT(*) n FROM INFORMATION_SCHEMA.COLUMNS
-       WHERE TABLE_SCHEMA=? AND TABLE_NAME='club_fields' AND COLUMN_NAME='label'`,
-      [db]
-    );
-    if (hasField.n) {
-      await pool.query(`ALTER TABLE club_fields CHANGE COLUMN field field_label VARCHAR(100) NOT NULL`);
-    } else if (hasLabel.n) {
-      await pool.query(`ALTER TABLE club_fields CHANGE COLUMN label field_label VARCHAR(100) NOT NULL`);
-    } else {
-      await pool.query(`ALTER TABLE club_fields ADD COLUMN field_label VARCHAR(100) NOT NULL`);
-    }
-  }
-  try {
-    await pool.query(`ALTER TABLE club_fields DROP PRIMARY KEY, ADD PRIMARY KEY (club_id, field_label)`);
-  } catch (_) {}
-}
-async function ensureUniqueIndex() {
-  try {
-    await pool.query(`ALTER TABLE clubs ADD UNIQUE KEY uq_club_name_code (name, president_code)`);
-    console.log('[schema] Added unique index clubs(name, president_code)');
-  } catch {
-    /* exists */
-  }
-}
-/* ---------------- Schema helpers (idempotent) ---------------- */
 async function ensureBaseTables() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS clubs (
@@ -296,13 +177,10 @@ async function ensureMeetingDays() {
       name VARCHAR(20) NOT NULL UNIQUE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
-
-  /* MySQL 8.0.19+ compatible (and required for 9.x): use row alias instead of VALUES() */
+  // Compatible with MySQL 5.7 and 9.x (no VALUES() in UPDATE, no alias trick).
   await pool.query(`
-    INSERT INTO meeting_days (id, name) VALUES
+    INSERT IGNORE INTO meeting_days (id, name) VALUES
       (1,'Monday'),(2,'Tuesday'),(3,'Wednesday'),(4,'Thursday'),(5,'Friday')
-    AS new
-    ON DUPLICATE KEY UPDATE name = new.name
   `);
 }
 
@@ -358,7 +236,7 @@ async function ensureClubFields() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 
-  // legacy column migrations (safe to no-op)
+  // Legacy migrations (safe to no-op if not present)
   const [[hasFieldLabel]] = await pool.query(
     `SELECT COUNT(*) n FROM INFORMATION_SCHEMA.COLUMNS
      WHERE TABLE_SCHEMA=? AND TABLE_NAME='club_fields' AND COLUMN_NAME='field_label'`,
@@ -385,14 +263,14 @@ async function ensureClubFields() {
   }
   try {
     await pool.query(`ALTER TABLE club_fields DROP PRIMARY KEY, ADD PRIMARY KEY (club_id, field_label)`);
-  } catch { /* ignore if already correct */ }
+  } catch { /* already correct */ }
 }
 
 async function ensureUniqueIndex() {
   try {
     await pool.query(`ALTER TABLE clubs ADD UNIQUE KEY uq_club_name_code (name, president_code)`);
     console.log('[schema] Added unique index clubs(name, president_code)');
-  } catch { /* already exists */ }
+  } catch { /* exists */ }
 }
 
 async function ensureSchema() {
@@ -627,7 +505,7 @@ app.get('/api/admin/clubs', async (req, res) => {
   }
 });
 
-/* ---------------- Admin: edit/delete ---------------- */
+/* ---------------- Admin: approve/edit/delete ---------------- */
 app.post('/api/clubs/:id/approve', async (req, res) => {
   if (!isAuthorized(req)) return res.status(401).json({ error: 'unauthorized' });
   try {
