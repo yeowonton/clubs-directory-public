@@ -15,9 +15,7 @@ const publicDir = path.join(__dirname, 'public');
 /* ---------------- App ---------------- */
 const app = express();
 const port = Number(process.env.PORT || 3000);
-
-// so req.ip is correct behind BrowserSync/NGINX
-app.set('trust proxy', true);
+app.set('trust proxy', true); // correct client IP behind proxies
 
 /* ---------------- Parsers + static ---------------- */
 app.use(express.static(publicDir));
@@ -46,7 +44,6 @@ function poolFromUrl(url) {
     database: u.pathname.slice(1),
     waitForConnections: true,
     connectionLimit: 10,
-    // enable TLS if URL has ?ssl=true (Railway public connection usually does)
     ssl: u.searchParams.get('ssl') === 'true' ? { rejectUnauthorized: false } : undefined,
   });
 }
@@ -65,7 +62,6 @@ const pool =
         ssl: process.env.MYSQL_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
       });
 
-// quick connection test so logs tell you what's wrong
 try {
   const c = await pool.getConnection();
   c.release();
@@ -123,6 +119,20 @@ function normalizeWebsiteUrl(url) {
 }
 
 /* ---------------- Schema helpers (idempotent) ---------------- */
+// Works on MySQL 5.7 and 8/9. Uses DATABASE() so it’s correct for MYSQL_URL.
+async function ensureColumnIfMissing(table, column, ddl) {
+  const [[row]] = await pool.query(
+    `SELECT COUNT(*) AS n
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+    [table, column]
+  );
+  if (!row.n) {
+    await pool.query(ddl);
+    console.log(`[schema] Added ${table}.${column}`);
+  }
+}
+
 async function ensureBaseTables() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS clubs (
@@ -148,26 +158,19 @@ async function ensureBaseTables() {
   `);
 }
 
-async function ensureColumnIfMissing(table, column, ddl) {
-  const db = process.env.MYSQL_DATABASE || 'clubs_db';
-  const [[col]] = await pool.query(
-    `SELECT COUNT(*) n FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND COLUMN_NAME=?`,
-    [db, table, column]
-  );
-  if (!col.n) {
-    await pool.query(ddl);
-    console.log(`[schema] Added ${table}.${column}`);
-  }
-}
-
 async function ensureWebsiteColumn() {
-  await ensureColumnIfMissing('clubs', 'website_url',
-    `ALTER TABLE clubs ADD COLUMN website_url VARCHAR(512) DEFAULT NULL`);
+  await ensureColumnIfMissing(
+    'clubs',
+    'website_url',
+    `ALTER TABLE clubs ADD COLUMN website_url VARCHAR(512) DEFAULT NULL`
+  );
 }
 async function ensureMeetingRoomColumn() {
-  await ensureColumnIfMissing('clubs', 'meeting_room',
-    `ALTER TABLE clubs ADD COLUMN meeting_room VARCHAR(50) DEFAULT NULL`);
+  await ensureColumnIfMissing(
+    'clubs',
+    'meeting_room',
+    `ALTER TABLE clubs ADD COLUMN meeting_room VARCHAR(50) DEFAULT NULL`
+  );
 }
 
 async function ensureMeetingDays() {
@@ -177,11 +180,21 @@ async function ensureMeetingDays() {
       name VARCHAR(20) NOT NULL UNIQUE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
-  // Compatible with MySQL 5.7 and 9.x (no VALUES() in UPDATE, no alias trick).
-  await pool.query(`
-    INSERT IGNORE INTO meeting_days (id, name) VALUES
-      (1,'Monday'),(2,'Tuesday'),(3,'Wednesday'),(4,'Thursday'),(5,'Friday')
-  `);
+  // Try MySQL 8/9 style first; fallback to 5.7 VALUES() if needed
+  try {
+    await pool.query(`
+      INSERT INTO meeting_days (id, name) VALUES
+        (1,'Monday'),(2,'Tuesday'),(3,'Wednesday'),(4,'Thursday'),(5,'Friday')
+      AS new
+      ON DUPLICATE KEY UPDATE name = new.name
+    `);
+  } catch {
+    await pool.query(`
+      INSERT INTO meeting_days (id, name) VALUES
+        (1,'Monday'),(2,'Tuesday'),(3,'Wednesday'),(4,'Thursday'),(5,'Friday')
+      ON DUPLICATE KEY UPDATE name = VALUES(name)
+    `);
+  }
 }
 
 async function ensureSubfieldsBase() {
@@ -226,7 +239,6 @@ async function ensureClubCategories() {
 }
 
 async function ensureClubFields() {
-  const db = process.env.MYSQL_DATABASE || 'clubs_db';
   await pool.query(`
     CREATE TABLE IF NOT EXISTS club_fields (
       club_id INT NOT NULL,
@@ -236,22 +248,28 @@ async function ensureClubFields() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 
-  // Legacy migrations (safe to no-op if not present)
+  // Legacy migrations (safe no-ops if already correct)
   const [[hasFieldLabel]] = await pool.query(
-    `SELECT COUNT(*) n FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA=? AND TABLE_NAME='club_fields' AND COLUMN_NAME='field_label'`,
-    [db]
+    `SELECT COUNT(*) n
+       FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME='club_fields'
+        AND COLUMN_NAME='field_label'`
   );
   if (!hasFieldLabel.n) {
     const [[hasField]] = await pool.query(
-      `SELECT COUNT(*) n FROM INFORMATION_SCHEMA.COLUMNS
-       WHERE TABLE_SCHEMA=? AND TABLE_NAME='club_fields' AND COLUMN_NAME='field'`,
-      [db]
+      `SELECT COUNT(*) n
+         FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME='club_fields'
+          AND COLUMN_NAME='field'`
     );
     const [[hasLabel]] = await pool.query(
-      `SELECT COUNT(*) n FROM INFORMATION_SCHEMA.COLUMNS
-       WHERE TABLE_SCHEMA=? AND TABLE_NAME='club_fields' AND COLUMN_NAME='label'`,
-      [db]
+      `SELECT COUNT(*) n
+         FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME='club_fields'
+          AND COLUMN_NAME='label'`
     );
     if (hasField.n) {
       await pool.query(`ALTER TABLE club_fields CHANGE COLUMN field field_label VARCHAR(100) NOT NULL`);
@@ -263,14 +281,14 @@ async function ensureClubFields() {
   }
   try {
     await pool.query(`ALTER TABLE club_fields DROP PRIMARY KEY, ADD PRIMARY KEY (club_id, field_label)`);
-  } catch { /* already correct */ }
+  } catch {}
 }
 
 async function ensureUniqueIndex() {
   try {
     await pool.query(`ALTER TABLE clubs ADD UNIQUE KEY uq_club_name_code (name, president_code)`);
     console.log('[schema] Added unique index clubs(name, president_code)');
-  } catch { /* exists */ }
+  } catch {}
 }
 
 async function ensureSchema() {
@@ -285,7 +303,7 @@ async function ensureSchema() {
   await ensureUniqueIndex();
 }
 
-// ensure schema at startup
+// run schema bootstrap
 (async () => {
   try {
     const [r] = await pool.query('SELECT 1');
@@ -319,9 +337,9 @@ app.get('/api/clubs', async (req, res) => {
       `SELECT c.id, c.name, c.subject, c.meeting_time_type, c.meeting_time_range,
               c.meeting_frequency, c.prereq_required, c.prerequisites, c.description,
               c.open_to_all, c.volunteer_hours, c.status, c.website_url, c.meeting_room
-       FROM clubs c
-       WHERE ? OR c.status='approved'
-       ORDER BY c.name`,
+         FROM clubs c
+        WHERE ? OR c.status='approved'
+        ORDER BY c.name`,
       [includePending ? 1 : 0]
     );
     const ids = rows.map((r) => r.id);
@@ -375,7 +393,7 @@ app.get('/api/clubs', async (req, res) => {
     cats.forEach((r) => byId.get(r.club_id)?.categories.push(r.category));
     fields.forEach((r) => byId.get(r.club_id)?.fields.push(r.field_label));
 
-    // back-compat: if a club has no rows in club_fields, fall back to subject as single field
+    // back-compat: if a club has no rows in club_fields, fall back to subject
     byId.forEach((v) => {
       if (!v.fields.length && v.subject) v.fields = [v.subject];
     });
@@ -440,8 +458,8 @@ app.get('/api/admin/clubs', async (req, res) => {
       `SELECT id, name, subject, meeting_time_type, meeting_time_range, meeting_frequency,
               prereq_required, prerequisites, description, open_to_all, volunteer_hours,
               status, president_code, website_url, meeting_room
-       FROM clubs
-       ORDER BY name`
+         FROM clubs
+        ORDER BY name`
     );
     const ids = rows.map((r) => r.id);
     if (!ids.length) return res.json({ clubs: [] });
@@ -494,9 +512,7 @@ app.get('/api/admin/clubs', async (req, res) => {
     md.forEach((r) => byId.get(r.club_id)?.meeting_days.push(r.name));
     cats.forEach((r) => byId.get(r.club_id)?.categories.push(r.category));
     fields.forEach((r) => byId.get(r.club_id)?.fields.push(r.field_label));
-    byId.forEach((v) => {
-      if (!v.fields.length && v.subject) v.fields = [v.subject];
-    });
+    byId.forEach((v) => { if (!v.fields.length && v.subject) v.fields = [v.subject]; });
 
     res.json({ clubs: [...byId.values()] });
   } catch (e) {
@@ -505,7 +521,7 @@ app.get('/api/admin/clubs', async (req, res) => {
   }
 });
 
-/* ---------------- Admin: approve/edit/delete ---------------- */
+/* ---------------- Admin: approve / edit / delete ---------------- */
 app.post('/api/clubs/:id/approve', async (req, res) => {
   if (!isAuthorized(req)) return res.status(401).json({ error: 'unauthorized' });
   try {
@@ -587,13 +603,13 @@ app.post('/api/presidents/submit', async (req, res) => {
     if (!meeting_time_type || !TIME_TYPES.has(meeting_time_type)) missing.push('meeting_time_type');
     if (!meeting_days.length) missing.push('meeting_days');
     if (meeting_time_type === 'after_school' && !meeting_time_range) missing.push('meeting_time_range');
-    if (!meeting_room) missing.push('meeting_room'); // REQUIRED
+    if (!meeting_room) missing.push('meeting_room');
     if (missing.length) return res.status(400).json({ error: 'missing_required', fields: missing });
 
     const words = (description.match(/\S+/g) || []).length;
     if (words > 200) return res.status(400).json({ error: 'desc_too_long', words });
 
-    // Subject is legacy single-field; keep for back-compat, but also store ALL fields in club_fields.
+    // Subject = legacy single field; keep for back-compat, but store ALL fields in club_fields.
     const subject = (fields[0] || 'Other').trim();
 
     const conn = await pool.getConnection();
