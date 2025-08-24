@@ -18,10 +18,14 @@ const port = Number(process.env.PORT || 3000);
 app.set('trust proxy', true);
 
 /* ---------------- Parsers + static ---------------- */
+
 app.use(express.static(publicDir));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
-
+app.use('/TWEB', express.static(path.join(publicDir, 'TWEB'), { index: ['index.html'] }));
+app.get(['/TWEB', '/TWEB/'], (_req, res) =>
+  res.sendFile(path.join(publicDir, 'TWEB', 'index.html'))
+);
 /* ---------------- Pretty routes -> HTML ---------------- */
 app.get(['/', '/index', '/index.html'], (_req, res) =>
   res.sendFile(path.join(publicDir, 'index.html'))
