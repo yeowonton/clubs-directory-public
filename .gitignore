@@ -3,3 +3,4 @@ node_modules/
 *.local
 .DS_Store
 .vscode/
+node_modules/
