@@ -22,6 +22,15 @@ app.use(express.static(publicDir));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+app.use((err, req, res, next) => {
+  // Body-parser JSON error
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    console.error('[json] parse error:', err.message);
+    return res.status(400).json({ error: 'invalid_json' });
+  }
+  return next(err);
+});
+
 /* ---------------- Pretty routes -> HTML ---------------- */
 app.get(['/', '/index', '/index.html'], (_req, res) =>
   res.sendFile(path.join(publicDir, 'index.html'))
@@ -535,8 +544,13 @@ app.post('/api/clubs/:id/approve', async (req, res) => {
 
 app.patch('/api/clubs/:id', async (req, res) => {
   if (!isAuthorized(req)) return res.status(401).json({ error: 'unauthorized' });
+
+  // be tolerant if the JSON parser didn’t run / body missing
+  const body = (req && req.body && typeof req.body === 'object') ? req.body : {};
+  const desc = typeof body.description === 'string' ? body.description : '';
+
   try {
-    await pool.query(`UPDATE clubs SET description=? WHERE id=?`, [req.body.description ?? '', req.params.id]);
+    await pool.query(`UPDATE clubs SET description=? WHERE id=?`, [desc, req.params.id]);
     res.json({ ok: true });
   } catch (e) {
     console.error('patch error:', e.code || e.message);
