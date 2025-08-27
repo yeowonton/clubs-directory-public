@@ -22,7 +22,7 @@ app.use(express.static(publicDir));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-app.use((err, req, res, next) => {
+app.use((err, _req, res, next) => {
   // Body-parser JSON error
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
     console.error('[json] parse error:', err.message);
@@ -123,12 +123,13 @@ function normalizeWebsiteUrl(url) {
   const u = String(url).trim();
   if (!u) return null;
   if (/^https?:\/\//i.test(u)) return u;
+  if (u.startsWith('//')) return 'https:' + u;
   if (u.includes('.') || u.startsWith('www.')) return 'https://' + u.replace(/^\/+/, '');
   return u;
 }
 
 /* ---------------- Schema helpers (idempotent) ---------------- */
-// Works on MySQL 5.7 and 8/9. Uses DATABASE() so it’s correct for MYSQL_URL.
+// Uses DATABASE() so it’s correct for MYSQL_URL.
 async function ensureColumnIfMissing(table, column, ddl) {
   const [[row]] = await pool.query(
     `SELECT COUNT(*) AS n
@@ -139,6 +140,32 @@ async function ensureColumnIfMissing(table, column, ddl) {
   if (!row.n) {
     await pool.query(ddl);
     console.log(`[schema] Added ${table}.${column}`);
+  }
+}
+
+async function dropIndexIfExists(table, indexName) {
+  const [[row]] = await pool.query(
+    `SELECT COUNT(*) AS n
+       FROM INFORMATION_SCHEMA.STATISTICS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?`,
+    [table, indexName]
+  );
+  if (row.n) {
+    await pool.query(`ALTER TABLE \`${table}\` DROP INDEX \`${indexName}\``);
+    console.log(`[schema] Dropped index ${table}.${indexName}`);
+  }
+}
+
+async function addUniqueIndexIfMissing(table, indexName, columnsSql) {
+  const [[row]] = await pool.query(
+    `SELECT COUNT(*) AS n
+       FROM INFORMATION_SCHEMA.STATISTICS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?`,
+    [table, indexName]
+  );
+  if (!row.n) {
+    await pool.query(`ALTER TABLE \`${table}\` ADD UNIQUE KEY \`${indexName}\` (${columnsSql})`);
+    console.log(`[schema] Added unique index ${table}.${indexName}(${columnsSql})`);
   }
 }
 
@@ -157,29 +184,15 @@ async function ensureBaseTables() {
       prerequisites VARCHAR(255) DEFAULT '',
       description TEXT,
       volunteer_hours TINYINT(1) NOT NULL DEFAULT 0,
-      president_code VARCHAR(64) NOT NULL,
+      president_code VARCHAR(64) NOT NULL,              -- kept for back-compat, but no longer used for auth
       status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'approved',
       website_url VARCHAR(512) DEFAULT NULL,
+      president_contact VARCHAR(255) DEFAULT NULL,      -- new
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      UNIQUE KEY uq_name_code (name, president_code)
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      -- we will migrate the unique index below
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
-}
-
-async function ensureWebsiteColumn() {
-  await ensureColumnIfMissing(
-    'clubs',
-    'website_url',
-    `ALTER TABLE clubs ADD COLUMN website_url VARCHAR(512) DEFAULT NULL`
-  );
-}
-async function ensureMeetingRoomColumn() {
-  await ensureColumnIfMissing(
-    'clubs',
-    'meeting_room',
-    `ALTER TABLE clubs ADD COLUMN meeting_room VARCHAR(50) DEFAULT NULL`
-  );
 }
 
 async function ensureMeetingDays() {
@@ -189,7 +202,6 @@ async function ensureMeetingDays() {
       name VARCHAR(20) NOT NULL UNIQUE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
-  // Try MySQL 8/9 style first; fallback to 5.7 VALUES() if needed
   try {
     await pool.query(`
       INSERT INTO meeting_days (id, name) VALUES
@@ -293,11 +305,17 @@ async function ensureClubFields() {
   } catch {}
 }
 
-async function ensureUniqueIndex() {
+/** Migrate unique constraint from (name, president_code) to unique(name). */
+async function ensureUniqueNameOnly() {
+  // Drop legacy composite unique if present
+  await dropIndexIfExists('clubs', 'uq_name_code');
+  await dropIndexIfExists('clubs', 'uq_club_name_code'); // just in case older name
+  // Add unique(name) if possible; this will fail if duplicates exist (we log and continue)
   try {
-    await pool.query(`ALTER TABLE clubs ADD UNIQUE KEY uq_club_name_code (name, president_code)`);
-    console.log('[schema] Added unique index clubs(name, president_code)');
-  } catch {}
+    await addUniqueIndexIfMissing('clubs', 'uq_name', '`name`');
+  } catch (e) {
+    console.warn('[schema] Could not add unique(name). There may be duplicate names. Skipping.', e.code || e.message);
+  }
 }
 
 async function ensureSchema() {
@@ -307,9 +325,7 @@ async function ensureSchema() {
   await ensureLinkTables();
   await ensureClubCategories();
   await ensureClubFields();
-  await ensureWebsiteColumn();
-  await ensureMeetingRoomColumn();
-  await ensureUniqueIndex();
+  await ensureUniqueNameOnly();
 }
 
 // run schema bootstrap
@@ -345,7 +361,8 @@ app.get('/api/clubs', async (req, res) => {
     const [rows] = await pool.query(
       `SELECT c.id, c.name, c.subject, c.meeting_time_type, c.meeting_time_range,
               c.meeting_frequency, c.prereq_required, c.prerequisites, c.description,
-              c.open_to_all, c.volunteer_hours, c.status, c.website_url, c.meeting_room
+              c.open_to_all, c.volunteer_hours, c.status, c.website_url, c.meeting_room,
+              c.president_contact
          FROM clubs c
         WHERE ? OR c.status='approved'
         ORDER BY c.name`,
@@ -389,6 +406,7 @@ app.get('/api/clubs', async (req, res) => {
           status: r.status,
           website_url: r.website_url || null,
           meeting_room: r.meeting_room || '',
+          president_contact: r.president_contact || null,
           subfield: [],
           meeting_days: [],
           categories: [],
@@ -459,14 +477,14 @@ app.post('/api/admin/login', (req, res) => {
   res.json({ ok: true });
 });
 
-/* ---------------- Admin: list clubs (incl. president_code) ---------------- */
+/* ---------------- Admin: list clubs ---------------- */
 app.get('/api/admin/clubs', async (req, res) => {
   if (!isAuthorized(req)) return res.status(401).json({ error: 'unauthorized' });
   try {
     const [rows] = await pool.query(
       `SELECT id, name, subject, meeting_time_type, meeting_time_range, meeting_frequency,
               prereq_required, prerequisites, description, open_to_all, volunteer_hours,
-              status, president_code, website_url, meeting_room
+              status, president_code, website_url, meeting_room, president_contact
          FROM clubs
         ORDER BY name`
     );
@@ -506,9 +524,10 @@ app.get('/api/admin/clubs', async (req, res) => {
           open_to_all: !!r.open_to_all,
           volunteer_hours: !!r.volunteer_hours,
           status: r.status,
-          president_code: r.president_code || '',
+          president_code: r.president_code || '', // still visible to admin for legacy rows
           website_url: r.website_url || null,
           meeting_room: r.meeting_room || '',
+          president_contact: r.president_contact || null,
           subfield: [],
           meeting_days: [],
           categories: [],
@@ -584,8 +603,9 @@ app.post('/api/presidents/submit', async (req, res) => {
     }
     rlClear(req, 'pres_submit');
 
+    // Payload
     const club_name = (body.club_name || '').trim();
-    const president_code = (body.president_code || '').trim();
+    const president_contact = String(body.president_contact || '').trim();
     const meeting_frequency = (body.meeting_frequency || '').trim();
     const meeting_time_type = (body.meeting_time_type || '').trim();
     const meeting_time_range = (body.meeting_time_range || '').trim();
@@ -603,16 +623,13 @@ app.post('/api/presidents/submit', async (req, res) => {
     const website_url = normalizeWebsiteUrl(body.website_url);
     const volunteer_hours =
       typeof body.volunteer_hours === 'boolean'
-        ? body.volunteer_hours
-          ? 1
-          : 0
+        ? (body.volunteer_hours ? 1 : 0)
         : String(body.volunteer_hours).toLowerCase() === 'true'
         ? 1
         : 0;
 
     const missing = [];
     if (!club_name) missing.push('club_name');
-    if (!president_code) missing.push('president_code');
     if (!meeting_frequency || !MEETING_FREQUENCIES.has(meeting_frequency)) missing.push('meeting_frequency');
     if (!meeting_time_type || !TIME_TYPES.has(meeting_time_type)) missing.push('meeting_time_type');
     if (!meeting_days.length) missing.push('meeting_days');
@@ -626,24 +643,28 @@ app.post('/api/presidents/submit', async (req, res) => {
     // Subject = legacy single field; keep for back-compat, but store ALL fields in club_fields.
     const subject = (fields[0] || 'Other').trim();
 
+    // No longer used, but column is NOT NULL; we set '' consistently.
+    const president_code = '';
+
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
 
-      const [[existing]] = await conn.query(
-        `SELECT id FROM clubs WHERE name=? AND president_code=?`,
-        [club_name, president_code]
+      // Find by exact name only
+      const [[existingByName]] = await conn.query(
+        `SELECT id FROM clubs WHERE name=? LIMIT 1`,
+        [club_name]
       );
 
-      let clubId = existing?.id;
+      let clubId = existingByName?.id;
 
       if (!clubId) {
         const [ins] = await conn.query(
           `INSERT INTO clubs
            (name, subject, meeting_frequency, meeting_time_type, meeting_time_range, meeting_room,
             open_to_all, prereq_required, prerequisites, description,
-            volunteer_hours, president_code, status, website_url)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            volunteer_hours, president_code, status, website_url, president_contact)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           [
             club_name,
             subject,
@@ -656,9 +677,10 @@ app.post('/api/presidents/submit', async (req, res) => {
             prerequisites,
             description,
             volunteer_hours,
-            president_code,
+            president_code, // always '', legacy column
             'approved',
             website_url,
+            president_contact || null,
           ]
         );
         clubId = ins.insertId;
@@ -667,7 +689,7 @@ app.post('/api/presidents/submit', async (req, res) => {
           `UPDATE clubs SET
               subject=?, meeting_frequency=?, meeting_time_type=?, meeting_time_range=?, meeting_room=?,
               open_to_all=?, prereq_required=?, prerequisites=?, description=?,
-              volunteer_hours=?, website_url=?
+              volunteer_hours=?, website_url=?, president_contact=?
            WHERE id=?`,
           [
             subject,
@@ -681,6 +703,7 @@ app.post('/api/presidents/submit', async (req, res) => {
             description,
             volunteer_hours,
             website_url,
+            president_contact || null,
             clubId,
           ]
         );
@@ -749,7 +772,7 @@ app.post('/api/presidents/submit', async (req, res) => {
 console.log('[server] publicDir =', publicDir);
 console.log('[server] index exists =', fs.existsSync(path.join(publicDir, 'index.html')));
 
-const host = '0.0.0.0';           // IMPORTANT for containers
+const host = '0.0.0.0'; // IMPORTANT for containers
 app.listen(port, host, () => {
   console.log(`Server running: http://${host}:${port}`);
 });
@@ -763,4 +786,3 @@ process.on('SIGINT', () => {
   console.log('[server] got SIGINT – shutting down…');
   process.exit(0);
 });
-
