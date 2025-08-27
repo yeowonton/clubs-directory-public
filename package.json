@@ -3,13 +3,24 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20", "npm": ">=10" },
+  "engines": {
+    "node": ">=20",
+    "npm": ">=10"
+  },
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "build": "tailwindcss -i ./src/input.css -o ./public/styles.css --minify",
+    "build:css": "tailwindcss -i ./src/input.css -o ./public/styles.css --minify"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
     "express": "^5.1.0",
     "mysql2": "^3.14.3"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17"
   }
+  
 }

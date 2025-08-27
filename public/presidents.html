@@ -1,299 +1,296 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>President Submissions</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8" />
+  <title>President Submissions</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-<!-- Tailwind -->
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-tailwind.config = {
-  theme: {
-    extend: {
-      fontFamily: { display: ['"Playfair Display"', 'serif'] },
-      colors: { brand:'#e91e63', brand600:'#d81b60', brand700:'#c2185b' }
-    }
-  }
-};
-</script>
+  <!-- Tailwind (built locally to /public/styles.css) -->
+  <link href="/styles.css" rel="stylesheet">
 
-<!-- Fancy title font -->
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700..900&display=swap" rel="stylesheet" />
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-<link rel="manifest" href="/site.webmanifest">
-<meta name="theme-color" content="#e91e63">
+  <!-- Fancy title font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700..900&display=swap" rel="stylesheet" />
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#e91e63">
 </head>
 <body class="bg-white text-black">
-<header class="relative text-white border-b-4 border-brand bg-gradient-to-r from-black via-neutral-900 to-black">
-  <div class="pointer-events-none absolute inset-0 opacity-20"
-       style="background-image: radial-gradient(600px 200px at 50% -40px, rgba(233,30,99,.25), transparent);"></div>
-  <div class="max-w-6xl mx-auto flex items-center justify-center py-7 px-4">
-    <!-- Logo (left, crimson border) -->
-    <div class="absolute left-4 top-1/2 -translate-y-1/2">
-      <a href="./index.html" aria-label="Home" class="pointer-events-auto">
-        <img src="/logo.jpg" alt="Troy High Logo"
-             class="w-16 h-16 sm:w-20 sm:h-20 rounded-xl border object-cover"
-             style="border-color:#dc143c" />
-      </a>
+  <header class="relative text-white border-b-4 border-brand bg-gradient-to-r from-black via-neutral-900 to-black">
+    <div class="pointer-events-none absolute inset-0 opacity-20"
+         style="background-image: radial-gradient(600px 200px at 50% -40px, rgba(233,30,99,.25), transparent);"></div>
+    <div class="max-w-6xl mx-auto flex items-center justify-center py-7 px-4">
+      <!-- Logo (left, crimson border) -->
+      <div class="absolute left-4 top-1/2 -translate-y-1/2">
+        <a href="./index.html" aria-label="Home" class="pointer-events-auto">
+          <img src="/logo.jpg" alt="Troy High Logo"
+               class="w-16 h-16 sm:w-20 sm:h-20 rounded-xl border object-cover"
+               style="border-color:#dc143c" />
+        </a>
+      </div>
+      <!-- Centered fancy title -->
+      <div class="text-center">
+        <h1 class="font-extrabold text-3xl sm:text-4xl font-display bg-gradient-to-r from-brand to-brand700 bg-clip-text text-transparent">
+          President Submissions
+        </h1>
+        <p class="opacity-90 mt-1 text-sm sm:text-base">Submit or update your club. Saved immediately.</p>
+      </div>
     </div>
-    <!-- Centered fancy title -->
-    <div class="text-center">
-      <h1 class="font-extrabold text-3xl sm:text-4xl font-display bg-gradient-to-r from-brand to-brand700 bg-clip-text text-transparent">
-        President Submissions
-      </h1>
-      <p class="opacity-90 mt-1 text-sm sm:text-base">Submit or update your club. Saved immediately.</p>
-    </div>
-  </div>
-</header>
+  </header>
 
-<nav class="bg-neutral-100 border-b border-neutral-300 flex flex-wrap gap-4 justify-center px-4 py-2">
-  <a class="font-bold hover:text-brand" href="./index.html">All Clubs</a>
-  <a class="font-bold hover:text-brand" href="./presidents.html">President Submission</a>
-  <a class="font-bold hover:text-brand" href="./admin.html">Admin</a>
-</nav>
+  <nav class="bg-neutral-100 border-b border-neutral-300 flex flex-wrap gap-4 justify-center px-4 py-2">
+    <a class="font-bold hover:text-brand" href="./index.html">All Clubs</a>
+    <a class="font-bold hover:text-brand" href="./presidents.html">President Submission</a>
+    <a class="font-bold hover:text-brand" href="./admin.html">Admin</a>
+  </nav>
 
-<main class="max-w-5xl mx-auto p-5">
-  <section class="bg-neutral-50 border border-neutral-300 rounded-2xl p-5 shadow-sm">
-    <div class="flex items-end justify-between gap-3 mb-4">
-      <h3 class="font-extrabold text-xl border-l-4 border-brand pl-3 font-display">
-        Submit / Update Your Club
-        <span class="ml-2 text-xs font-normal text-neutral-600">(<span class="text-brand">*</span> required)</span>
-      </h3>
-    </div>
-
-    <div class="rounded-xl border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-amber-900 mb-5">
-      <div class="font-bold">Important: Club Name & Capitalization</div>
-      <ul class="list-disc ml-5 mt-1 text-sm leading-relaxed">
-        <li>Your club is identified by the <strong>exact Club Name</strong> <em>and</em> the <strong>President Code</strong> (club password).</li>
-        <li><strong>Capitalization matters</strong> — “Math Club” ≠ “MATH Club”.</li>
-        <li>To update later, resubmit with the <strong>same Club Name (same capitalization)</strong> and the <strong>same President Code</strong>.</li>
-      </ul>
-    </div>
-
-    <!-- Full form (original layout) -->
-    <form id="presForm" class="space-y-6">
-      <!-- Identity -->
-      <fieldset class="border border-neutral-200 rounded-xl p-4 bg-white">
-        <legend class="px-2 text-sm font-bold text-neutral-700">Identity</legend>
-        <div class="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label class="font-bold text-sm">Club Name <span class="text-brand">*</span></label>
-            <input name="club_name" required class="mt-1 border border-neutral-300 rounded-lg px-3 py-2 w-full"
-                   placeholder="e.g., Troy Web Development Club"
-                   title="Capitalization matters — exact Club Name + President Code are used to update later." />
-          </div>
-          <div>
-            <label class="font-bold text-sm">President Submission Password <span class="text-brand">*</span></label>
-            <input name="president_submit_password" type="text" required class="mt-1 border border-neutral-300 rounded-lg px-3 py-2 w-full" placeholder="Ask your commissioner" />
-          </div>
-        </div>
-        <div class="grid sm:grid-cols-2 gap-4 mt-4">
-          <div>
-            <label class="font-bold text-sm">President Code (Club Password) <span class="text-brand">*</span></label>
-            <input name="president_code" required class="mt-1 border border-neutral-300 rounded-lg px-3 py-2 w-full"
-                   placeholder="Create a password for THIS club"
-                   title="Remember this code for future edits." />
-            <p class="text-xs text-neutral-600 mt-1">Reminder: <strong>remember this code</strong> for future edits.</p>
-          </div>
-          <div>
-            <label class="font-bold text-sm">Website</label>
-            <input name="website_url" class="mt-1 border border-neutral-300 rounded-lg px-3 py-2 w-full" placeholder="https://yourclub.example.com" />
-            <p class="text-xs text-neutral-600 mt-1">No website? Contact <a class="text-brand font-semibold underline" href="./TWEB/" target="_blank" rel="noopener">Troy Web Dev</a> to make one!</p>
-          </div>
-        </div>
-      </fieldset>
-
-      <!-- Focus & Category -->
-      <fieldset class="border border-neutral-200 rounded-xl p-4 bg-white">
-        <legend class="px-2 text-sm font-bold text-neutral-700">Focus & Category</legend>
-        <div class="grid md:grid-cols-2 gap-4">
-          <div>
-            <div class="font-bold text-sm mb-2">Field(s)</div>
-            <div class="grid grid-cols-2 gap-2 text-sm" id="fieldsGroup">
-              <label data-palette="field:STEM" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
-                <input type="checkbox" name="fields" value="STEM" class="accent-brand">STEM
-              </label>
-              <label data-palette="field:Humanities" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
-                <input type="checkbox" name="fields" value="Humanities" class="accent-brand">Humanities
-              </label>
-              <label data-palette="field:Arts / Culture" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
-                <input type="checkbox" name="fields" value="Arts / Culture" class="accent-brand">Arts / Culture
-              </label>
-              <label data-palette="field:Social Impact / Service" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
-                <input type="checkbox" name="fields" value="Social Impact / Service" class="accent-brand">Social Impact / Service
-              </label>
-              <label data-palette="field:Sports & Wellness" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
-                <input type="checkbox" name="fields" value="Sports & Wellness" class="accent-brand">Sports & Wellness
-              </label>
-              <label data-palette="field:Faith / Identity / Other" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
-                <input type="checkbox" name="fields" value="Faith / Identity / Other" class="accent-brand">Faith / Identity / Other
-              </label>
-            </div>
-          </div>
-          <div>
-            <div class="font-bold text-sm mb-2">Categories</div>
-            <div class="grid grid-cols-2 gap-2 text-sm" id="categoriesGroup">
-              <label data-palette="cat:competition" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
-                <input type="checkbox" name="categories" value="competition" class="accent-brand">Competition-based
-              </label>
-              <label data-palette="cat:activity" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
-                <input type="checkbox" name="categories" value="activity" class="accent-brand">Activity-based
-              </label>
-              <label data-palette="cat:community" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
-                <input type="checkbox" name="categories" value="community" class="accent-brand">Community Service–based
-              </label>
-              <label data-palette="cat:research" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
-                <input type="checkbox" name="categories" value="research" class="accent-brand">Research / Academic
-              </label>
-              <label data-palette="cat:advocacy" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
-                <input type="checkbox" name="categories" value="advocacy" class="accent-brand">Awareness / Advocacy
-              </label>
-              <label data-palette="cat:outreach" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
-                <input type="checkbox" name="categories" value="outreach" class="accent-brand">Outreach / Teaching
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <!-- STEM subfields only when STEM selected -->
-        <div id="stemSubfieldsWrap" class="mt-4 hidden">
-          <div class="font-bold text-sm mb-2">STEM Subfields</div>
-          <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm" id="subfieldsGroup">
-            <label data-palette="sub:Biology" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
-              <input type="checkbox" name="subfields" value="Biology" class="accent-brand">Biology
-            </label>
-            <label data-palette="sub:Chemistry" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
-              <input type="checkbox" name="subfields" value="Chemistry" class="accent-brand">Chemistry
-            </label>
-            <label data-palette="sub:Physics / Engineering" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
-              <input type="checkbox" name="subfields" value="Physics / Engineering" class="accent-brand">Physics / Engineering
-            </label>
-            <label data-palette="sub:Computer Science / Tech" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
-              <input type="checkbox" name="subfields" value="Computer Science / Tech" class="accent-brand">Computer Science / Tech
-            </label>
-            <label data-palette="sub:Math / Data" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
-              <input type="checkbox" name="subfields" value="Math / Data" class="accent-brand">Math / Data
-            </label>
-            <label data-palette="sub:Medicine & Health" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
-              <input type="checkbox" name="subfields" value="Medicine & Health" class="accent-brand">Medicine & Health
-            </label>
-          </div>
-        </div>
-      </fieldset>
-
-      <!-- Meetings (Required) -->
-      <fieldset class="border border-neutral-200 rounded-xl p-4 bg-white">
-        <legend class="px-2 text-sm font-bold text-neutral-700">Meetings</legend>
-        <div class="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label class="font-bold text-sm">Meeting Frequency <span class="text-brand">*</span></label>
-            <select name="meeting_frequency" required class="mt-1 border border-neutral-300 rounded-lg px-3 py-2 w-full">
-              <option value="">Select…</option>
-              <option value="weekly">Weekly</option>
-              <option value="biweekly">Biweekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="event">Event/project only</option>
-            </select>
-            <p class="text-xs text-red-600 mt-1 hidden" data-error="meeting_frequency">Please select a meeting frequency.</p>
-          </div>
-          <div>
-            <label class="font-bold text-sm">Meeting Time <span class="text-brand">*</span></label>
-            <div class="flex flex-wrap items-center gap-4 mt-2">
-              <label class="flex items-center gap-2"><input type="radio" name="meeting_time_type" value="lunch" class="accent-brand"> Lunch</label>
-              <label class="flex items-center gap-2"><input type="radio" name="meeting_time_type" value="after_school" class="accent-brand"> After school</label>
-            </div>
-            <input id="mt_range" name="meeting_time_range" class="mt-2 border border-neutral-300 rounded-lg px-3 py-2 w-full hidden" placeholder="e.g., 3:30–4:30" />
-            <p class="text-xs text-red-600 mt-1 hidden" data-error="meeting_time_type">Please choose Lunch or After school.</p>
-            <p class="text-xs text-red-600 mt-1 hidden" data-error="meeting_time_range">Please add a time range for After school.</p>
-          </div>
-        </div>
-
-        <!-- Days (left) + Room (right) -->
-        <div class="grid sm:grid-cols-2 gap-4 mt-4">
-          <!-- Left: Meeting Days -->
-          <div>
-            <label class="font-bold text-sm">Meeting Days <span class="text-brand">*</span></label>
-            <div class="flex flex-wrap gap-2 mt-2">
-              <label class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-neutral-300"><input type="checkbox" name="meeting_days" value="Monday" class="accent-brand">Mon</label>
-              <label class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-neutral-300"><input type="checkbox" name="meeting_days" value="Tuesday" class="accent-brand">Tue</label>
-              <label class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-neutral-300"><input type="checkbox" name="meeting_days" value="Wednesday" class="accent-brand">Wed</label>
-              <label class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-neutral-300"><input type="checkbox" name="meeting_days" value="Thursday" class="accent-brand">Thu</label>
-              <label class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-neutral-300"><input type="checkbox" name="meeting_days" value="Friday" class="accent-brand">Fri</label>
-            </div>
-            <p class="text-xs text-red-600 mt-1 hidden" data-error="meeting_days">Please select at least one day.</p>
-          </div>
-
-          <!-- Right: Meeting Room (REQUIRED) -->
-          <div>
-            <label class="font-bold text-sm">Meeting Room (location) <span class="text-brand">*</span></label>
-            <input name="meeting_room" required aria-required="true"
-                   class="mt-1 border border-neutral-300 rounded-lg px-3 py-2 w-full"
-                   placeholder="e.g., Room 407" />
-            <p class="text-xs text-red-600 mt-1 hidden" data-error="meeting_room">Please enter a room.</p>
-          </div>
-        </div>
-      </fieldset>
-
-      <!-- Requirements -->
-      <fieldset class="border border-neutral-200 rounded-xl p-4 bg-white">
-        <legend class="px-2 text-sm font-bold text-neutral-700">Requirements</legend>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
-          <label class="flex items-center gap-2"><input type="checkbox" name="open_to_all" class="accent-brand">Open to all</label>
-          <label class="flex items-center gap-2"><input type="checkbox" id="prereq_required" name="prereq_required" class="accent-brand">Prerequisite required</label>
-          <div class="flex items-center gap-2">
-            <span class="font-bold text-sm">Volunteer Hours?</span>
-            <label class="flex items-center gap-1 text-sm"><input type="radio" name="volunteer_hours" value="true" class="accent-brand"> Yes</label>
-            <label class="flex items-center gap-1 text-sm"><input type="radio" name="volunteer_hours" value="false" class="accent-brand"> No</label>
-          </div>
-        </div>
-        <div id="prereq_text_wrap" class="grid sm:grid-cols-2 gap-4 mt-3 hidden">
-          <div>
-            <label class="font-bold text-sm">Prerequisites (text)</label>
-            <input name="prerequisites" class="mt-1 border border-neutral-300 rounded-lg px-3 py-2 w-full" placeholder="e.g., GPA requirements or tryouts" />
-          </div>
-        </div>
-      </fieldset>
-
-      <!-- Description -->
-      <fieldset class="border border-neutral-200 rounded-xl p-4 bg-white">
-        <legend class="px-2 text-sm font-bold text-neutral-700">Description</legend>
-        <label class="font-bold text-sm">Club Description</label>
-        <textarea name="description" id="desc" rows="5" class="mt-1 border border-neutral-300 rounded-lg px-3 py-2 w-full" placeholder="What does your club do? Keep it under 200 words."></textarea>
-        <div class="flex items-center justify-between">
-          <p id="wordCount" class="text-xs mt-1"><span class="font-semibold">0</span> / 200 words</p>
-        </div>
-        <p class="text-xs text-red-600 mt-1 hidden" data-error="description">Description exceeds 200 words.</p>
-      </fieldset>
-
-      <div class="pt-2 flex items-center gap-3">
-        <button class="bg-brand hover:bg-brand600 text-white font-bold px-4 py-2 rounded-lg shadow-sm" type="submit">Submit</button>
-        <span id="status" class="text-sm text-neutral-700"></span>
+  <main class="max-w-5xl mx-auto p-5">
+    <section class="bg-neutral-50 border border-neutral-300 rounded-2xl p-5 shadow-sm">
+      <div class="flex items-end justify-between gap-3 mb-4">
+        <h3 class="font-extrabold text-xl border-l-4 border-brand pl-3 font-display">
+          Submit / Update Your Club
+          <span class="ml-2 text-xs font-normal text-neutral-600">(<span class="text-brand">*</span> required)</span>
+        </h3>
       </div>
 
-      <details class="mt-4 border rounded-lg border-neutral-300 bg-white">
-        <summary class="px-3 py-2 cursor-pointer font-semibold">Debug</summary>
-        <div class="p-3 grid md:grid-cols-2 gap-3 text-sm">
-          <div><div class="font-bold mb-1">Payload</div><pre id="debugPayload" class="bg-neutral-50 border border-neutral-300 rounded p-2 overflow-auto max-h-64"></pre></div>
-          <div><div class="font-bold mb-1">Server response</div><pre id="debugResponse" class="bg-neutral-50 border border-neutral-300 rounded p-2 overflow-auto max-h-64"></pre></div>
+      <div class="rounded-xl border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-amber-900 mb-5">
+        <div class="font-bold">Important: Club Name & Capitalization</div>
+        <ul class="list-disc ml-5 mt-1 text-sm leading-relaxed">
+          <li>Your club is identified by the <strong>exact Club Name</strong> <em>and</em> the <strong>President Code</strong> (club password).</li>
+          <li><strong>Capitalization matters</strong> — “Math Club” ≠ “MATH Club”.</li>
+          <li>To update later, resubmit with the <strong>same Club Name (same capitalization)</strong> and the <strong>same President Code</strong>.</li>
+        </ul>
+      </div>
+
+      <!-- Full form -->
+      <form id="presForm" class="space-y-6">
+        <!-- Identity -->
+        <fieldset class="border border-neutral-200 rounded-xl p-4 bg-white">
+          <legend class="px-2 text-sm font-bold text-neutral-700">Identity</legend>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label class="font-bold text-sm">Club Name <span class="text-brand">*</span></label>
+              <input name="club_name" required class="mt-1 border border-neutral-300 rounded-lg px-3 py-2 w-full"
+                     placeholder="e.g., Troy Web Development Club"
+                     title="Capitalization matters — exact Club Name + President Code are used to update later." />
+            </div>
+            <div>
+              <label class="font-bold text-sm">President Submission Password <span class="text-brand">*</span></label>
+              <input name="president_submit_password" type="text" required class="mt-1 border border-neutral-300 rounded-lg px-3 py-2 w-full" placeholder="Ask your commissioner" />
+            </div>
+          </div>
+          <div class="grid sm:grid-cols-2 gap-4 mt-4">
+            <div>
+              <label class="font-bold text-sm">President Code (Club Password) <span class="text-brand">*</span></label>
+              <input name="president_code" type="text" required class="mt-1 border border-neutral-300 rounded-lg px-3 py-2 w-full"
+                     placeholder="Create a password for THIS club"
+                     title="Remember this code for future edits." />
+              <p class="text-xs text-neutral-600 mt-1">Reminder: <strong>remember this code</strong> for future edits.</p>
+            </div>
+            <div>
+              <label class="font-bold text-sm">Website</label>
+              <input name="website_url" class="mt-1 border border-neutral-300 rounded-lg px-3 py-2 w-full" placeholder="https://yourclub.example.com" />
+              <p class="text-xs text-neutral-600 mt-1">No website? Contact <a class="text-brand font-semibold underline" href="./TWEB/" target="_blank" rel="noopener">Troy Web Dev</a> to make one!</p>
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- Focus & Category -->
+        <fieldset class="border border-neutral-200 rounded-xl p-4 bg-white">
+          <legend class="px-2 text-sm font-bold text-neutral-700">Focus & Category</legend>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div>
+              <div class="font-bold text-sm mb-2">Field(s)</div>
+              <div class="grid grid-cols-2 gap-2 text-sm" id="fieldsGroup">
+                <label data-palette="field:STEM" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
+                  <input type="checkbox" name="fields" value="STEM" class="accent-brand">STEM
+                </label>
+                <label data-palette="field:Humanities" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
+                  <input type="checkbox" name="fields" value="Humanities" class="accent-brand">Humanities
+                </label>
+                <label data-palette="field:Arts / Culture" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
+                  <input type="checkbox" name="fields" value="Arts / Culture" class="accent-brand">Arts / Culture
+                </label>
+                <label data-palette="field:Social Impact / Service" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
+                  <input type="checkbox" name="fields" value="Social Impact / Service" class="accent-brand">Social Impact / Service
+                </label>
+                <label data-palette="field:Sports & Wellness" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
+                  <input type="checkbox" name="fields" value="Sports & Wellness" class="accent-brand">Sports & Wellness
+                </label>
+                <label data-palette="field:Faith / Identity / Other" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
+                  <input type="checkbox" name="fields" value="Faith / Identity / Other" class="accent-brand">Faith / Identity / Other
+                </label>
+              </div>
+            </div>
+            <div>
+              <div class="font-bold text-sm mb-2">Categories</div>
+              <div class="grid grid-cols-2 gap-2 text-sm" id="categoriesGroup">
+                <label data-palette="cat:competition" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
+                  <input type="checkbox" name="categories" value="competition" class="accent-brand">Competition-based
+                </label>
+                <label data-palette="cat:activity" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
+                  <input type="checkbox" name="categories" value="activity" class="accent-brand">Activity-based
+                </label>
+                <label data-palette="cat:community" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
+                  <input type="checkbox" name="categories" value="community" class="accent-brand">Community Service–based
+                </label>
+                <label data-palette="cat:research" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
+                  <input type="checkbox" name="categories" value="research" class="accent-brand">Research / Academic
+                </label>
+                <label data-palette="cat:advocacy" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
+                  <input type="checkbox" name="categories" value="advocacy" class="accent-brand">Awareness / Advocacy
+                </label>
+                <label data-palette="cat:outreach" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
+                  <input type="checkbox" name="categories" value="outreach" class="accent-brand">Outreach / Teaching
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- STEM subfields only when STEM selected -->
+          <div id="stemSubfieldsWrap" class="mt-4 hidden">
+            <div class="font-bold text-sm mb-2">STEM Subfields</div>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm" id="subfieldsGroup">
+              <label data-palette="sub:Biology" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
+                <input type="checkbox" name="subfields" value="Biology" class="accent-brand">Biology
+              </label>
+              <label data-palette="sub:Chemistry" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
+                <input type="checkbox" name="subfields" value="Chemistry" class="accent-brand">Chemistry
+              </label>
+              <label data-palette="sub:Physics / Engineering" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
+                <input type="checkbox" name="subfields" value="Physics / Engineering" class="accent-brand">Physics / Engineering
+              </label>
+              <label data-palette="sub:Computer Science / Tech" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
+                <input type="checkbox" name="subfields" value="Computer Science / Tech" class="accent-brand">Computer Science / Tech
+              </label>
+              <label data-palette="sub:Math / Data" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
+                <input type="checkbox" name="subfields" value="Math / Data" class="accent-brand">Math / Data
+              </label>
+              <label data-palette="sub:Medicine & Health" class="flex items-center gap-2 rounded px-2 py-1 border cursor-pointer">
+                <input type="checkbox" name="subfields" value="Medicine & Health" class="accent-brand">Medicine & Health
+              </label>
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- Meetings (Required) -->
+        <fieldset class="border border-neutral-200 rounded-xl p-4 bg-white">
+          <legend class="px-2 text-sm font-bold text-neutral-700">Meetings</legend>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label class="font-bold text-sm">Meeting Frequency <span class="text-brand">*</span></label>
+              <select name="meeting_frequency" required class="mt-1 border border-neutral-300 rounded-lg px-3 py-2 w-full">
+                <option value="">Select…</option>
+                <option value="weekly">Weekly</option>
+                <option value="biweekly">Biweekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="event">Event/project only</option>
+              </select>
+              <p class="text-xs text-red-600 mt-1 hidden" data-error="meeting_frequency">Please select a meeting frequency.</p>
+            </div>
+            <div>
+              <label class="font-bold text-sm">Meeting Time <span class="text-brand">*</span></label>
+              <div class="flex flex-wrap items-center gap-4 mt-2">
+                <label class="flex items-center gap-2"><input type="radio" name="meeting_time_type" value="lunch" class="accent-brand"> Lunch</label>
+                <label class="flex items-center gap-2"><input type="radio" name="meeting_time_type" value="after_school" class="accent-brand"> After school</label>
+              </div>
+              <input id="mt_range" name="meeting_time_range" class="mt-2 border border-neutral-300 rounded-lg px-3 py-2 w-full hidden" placeholder="e.g., 3:30–4:30" />
+              <p class="text-xs text-red-600 mt-1 hidden" data-error="meeting_time_type">Please choose Lunch or After school.</p>
+              <p class="text-xs text-red-600 mt-1 hidden" data-error="meeting_time_range">Please add a time range for After school.</p>
+            </div>
+          </div>
+
+          <!-- Days (left) + Room (right) -->
+          <div class="grid sm:grid-cols-2 gap-4 mt-4">
+            <!-- Left: Meeting Days -->
+            <div>
+              <label class="font-bold text-sm">Meeting Days <span class="text-brand">*</span></label>
+              <div class="flex flex-wrap gap-2 mt-2">
+                <label class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-neutral-300"><input type="checkbox" name="meeting_days" value="Monday" class="accent-brand">Mon</label>
+                <label class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-neutral-300"><input type="checkbox" name="meeting_days" value="Tuesday" class="accent-brand">Tue</label>
+                <label class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-neutral-300"><input type="checkbox" name="meeting_days" value="Wednesday" class="accent-brand">Wed</label>
+                <label class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-neutral-300"><input type="checkbox" name="meeting_days" value="Thursday" class="accent-brand">Thu</label>
+                <label class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-neutral-300"><input type="checkbox" name="meeting_days" value="Friday" class="accent-brand">Fri</label>
+              </div>
+              <p class="text-xs text-red-600 mt-1 hidden" data-error="meeting_days">Please select at least one day.</p>
+            </div>
+
+            <!-- Right: Meeting Room (REQUIRED) -->
+            <div>
+              <label class="font-bold text-sm">Meeting Room (location) <span class="text-brand">*</span></label>
+              <input name="meeting_room" required aria-required="true"
+                     class="mt-1 border border-neutral-300 rounded-lg px-3 py-2 w-full"
+                     placeholder="e.g., Room 407" />
+              <p class="text-xs text-red-600 mt-1 hidden" data-error="meeting_room">Please enter a room.</p>
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- Requirements -->
+        <fieldset class="border border-neutral-200 rounded-xl p-4 bg-white">
+          <legend class="px-2 text-sm font-bold text-neutral-700">Requirements</legend>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
+            <label class="flex items-center gap-2"><input type="checkbox" name="open_to_all" class="accent-brand">Open to all</label>
+            <label class="flex items-center gap-2"><input type="checkbox" id="prereq_required" name="prereq_required" class="accent-brand">Prerequisite required</label>
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-sm">Volunteer Hours?</span>
+              <label class="flex items-center gap-1 text-sm"><input type="radio" name="volunteer_hours" value="true" class="accent-brand"> Yes</label>
+              <label class="flex items-center gap-1 text-sm"><input type="radio" name="volunteer_hours" value="false" class="accent-brand"> No</label>
+            </div>
+          </div>
+          <div id="prereq_text_wrap" class="grid sm:grid-cols-2 gap-4 mt-3 hidden">
+            <div>
+              <label class="font-bold text-sm">Prerequisites (text)</label>
+              <input name="prerequisites" class="mt-1 border border-neutral-300 rounded-lg px-3 py-2 w-full" placeholder="e.g., GPA requirements or tryouts" />
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- Description -->
+        <fieldset class="border border-neutral-200 rounded-xl p-4 bg-white">
+          <legend class="px-2 text-sm font-bold text-neutral-700">Description</legend>
+          <label class="font-bold text-sm">Club Description</label>
+          <textarea name="description" id="desc" rows="5" class="mt-1 border border-neutral-300 rounded-lg px-3 py-2 w-full" placeholder="What does your club do? Keep it under 200 words."></textarea>
+          <div class="flex items-center justify-between">
+            <p id="wordCount" class="text-xs mt-1"><span class="font-semibold">0</span> / 200 words</p>
+          </div>
+          <p class="text-xs text-red-600 mt-1 hidden" data-error="description">Description exceeds 200 words.</p>
+        </fieldset>
+
+        <div class="pt-2 flex items-center gap-3">
+          <button class="bg-brand hover:bg-brand600 text-white font-bold px-4 py-2 rounded-lg shadow-sm" type="submit">Submit</button>
+          <span id="status" class="text-sm text-neutral-700"></span>
         </div>
-      </details>
-    </form>
-  </section>
 
-  <footer class="text-center text-neutral-600 mt-10 relative">
-    <a class="text-brand font-bold" href="./TWEB/" target="_blank" rel="noopener">Troy Web Dev</a> •
-    <a class="underline" href="mailto:yeowonyoon0109@gmail.com">yeowonyoon0109@gmail.com</a>
-    <span class="invisible absolute -bottom-2 left-1/2 -translate-x-1/2 text-[10px] select-none">made by Yeowon Yoon</span>
-  </footer>
-</main>
+        <details class="mt-4 border rounded-lg border-neutral-300 bg-white">
+          <summary class="px-3 py-2 cursor-pointer font-semibold">Debug</summary>
+          <div class="p-3 grid md:grid-cols-2 gap-3 text-sm">
+            <div>
+              <div class="font-bold mb-1">Payload</div>
+              <pre id="debugPayload" class="bg-neutral-50 border border-neutral-300 rounded p-2 overflow-auto max-h-64"></pre>
+            </div>
+            <div>
+              <div class="font-bold mb-1">Server response</div>
+              <pre id="debugResponse" class="bg-neutral-50 border border-neutral-300 rounded p-2 overflow-auto max-h-64"></pre>
+            </div>
+          </div>
+        </details>
+      </form>
+    </section>
 
-<script type="module">
-  import { initPresidents } from './app.js';
-  initPresidents();
-</script>
+    <footer class="text-center text-neutral-600 mt-10 relative">
+      <a class="text-brand font-bold" href="./TWEB/" target="_blank" rel="noopener">Troy Web Dev</a> •
+      <a class="underline" href="mailto:yeowonyoon0109@gmail.com">yeowonyoon0109@gmail.com</a>
+      <span class="invisible absolute -bottom-2 left-1/2 -translate-x-1/2 text-[10px] select-none">made by Yeowon Yoon</span>
+    </footer>
+  </main>
+
+  <script type="module">
+    import { initPresidents } from './app.js';
+    initPresidents();
+  </script>
 </body>
 </html>

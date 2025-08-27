@@ -1,64 +1,66 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>Clubs Admin</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-tailwind.config = {
-  theme: {
-    extend: {
-      colors: { brand:'#e91e63', brand600:'#d81b60', brand700:'#c2185b' }
-    }
-  }
-};
-</script>
+  <meta charset="UTF-8" />
+  <title>Clubs Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Self-hosted Tailwind build -->
+  <link href="/styles.css" rel="stylesheet">
 </head>
 <body class="bg-white text-black">
-<header class="bg-black text-white py-4">
-  <div class="max-w-6xl mx-auto px-4 flex items-center justify-between">
-    <h1 class="font-bold text-xl">Admin</h1>
-    <nav class="flex gap-4">
-      <a class="hover:text-brand" href="./index.html">All Clubs</a>
-      <a class="hover:text-brand" href="./presidents.html">President Submission</a>
-      <a class="hover:text-brand" href="./admin.html">Admin</a>
-    </nav>
-  </div>
-</header>
-
-<main class="max-w-6xl mx-auto p-5">
-  <section class="mb-6">
-    <form id="adminLogin" class="flex gap-2">
-      <input name="code" type="text" placeholder="Admin code" class="border rounded px-3 py-2 w-64" />
-      <button class="bg-brand text-white font-bold rounded px-3 py-2">Login</button>
-    </form>
-  </section>
-
-  <section id="adminPanel" class="hidden">
-    <div class="overflow-auto border rounded">
-      <table class="min-w-[800px] w-full text-sm">
-        <thead class="bg-neutral-100">
-          <tr>
-            <th class="text-left px-3 py-2">Club</th>
-            <th class="text-left px-3 py-2">President Code</th>
-            <th class="text-left px-3 py-2">Website</th>
-            <th class="text-left px-3 py-2">Days</th>
-            <th class="text-left px-3 py-2">Room</th>
-            <th class="text-left px-3 py-2">Status</th>
-            <th class="text-left px-3 py-2">Description</th>
-            <th class="text-left px-3 py-2">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="adminTableBody"></tbody>
-      </table>
+  <header class="bg-black text-white py-4">
+    <div class="max-w-6xl mx-auto px-4 flex items-center justify-between">
+      <h1 class="font-bold text-xl">Admin</h1>
+      <nav class="flex gap-4">
+        <a class="hover:text-brand" href="./index.html">All Clubs</a>
+        <a class="hover:text-brand" href="./presidents.html">President Submission</a>
+        <a class="hover:text-brand" href="./admin.html">Admin</a>
+      </nav>
     </div>
-  </section>
-</main>
+  </header>
 
-<script type="module">
-  import { initAdmin } from './app.js';
-  initAdmin();
-</script>
+  <main class="max-w-6xl mx-auto p-5">
+    <!-- Admin Login -->
+    <section class="mb-6">
+      <form id="adminLogin" class="flex gap-2">
+        <input 
+          name="code" 
+          type="text" 
+          placeholder="Admin code" 
+          class="border rounded px-3 py-2 w-64" 
+        />
+        <button class="bg-brand text-white font-bold rounded px-3 py-2">
+          Login
+        </button>
+      </form>
+    </section>
+
+    <!-- Admin Panel -->
+    <section id="adminPanel" class="hidden">
+      <div class="overflow-auto border rounded">
+        <table class="min-w-[800px] w-full text-sm">
+          <thead class="bg-neutral-100">
+            <tr>
+              <th class="text-left px-3 py-2">Club</th>
+              <th class="text-left px-3 py-2">President Code</th>
+              <th class="text-left px-3 py-2">Website</th>
+              <th class="text-left px-3 py-2">Days</th>
+              <th class="text-left px-3 py-2">Room</th>
+              <th class="text-left px-3 py-2">Status</th>
+              <th class="text-left px-3 py-2">Description</th>
+              <th class="text-left px-3 py-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="adminTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- App logic -->
+  <script type="module">
+    import { initAdmin } from './app.js';
+    initAdmin();
+  </script>
 </body>
 </html>
