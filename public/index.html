@@ -5,7 +5,7 @@
   <title>Troy High Clubs Directory</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Tailwind (self-hosted build) -->
+  <!-- Tailwind (built locally to /public/styles.css) -->
   <link href="/styles.css" rel="stylesheet">
 
   <!-- Fancy title font -->
@@ -13,7 +13,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700..900&display=swap" rel="stylesheet" />
 
-  <!-- Icons / PWA -->
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
@@ -24,8 +23,8 @@
     <div class="pointer-events-none absolute inset-0 opacity-20"
          style="background-image: radial-gradient(600px 200px at 50% -40px, rgba(233,30,99,.25), transparent);"></div>
     <div class="max-w-6xl mx-auto flex items-center justify-center py-7 px-4">
-      <!-- Logo (left, original spot, crimson border) -->
-      <div class="absolute left-4 top-1/2 -translate-y-1/2">
+      <!-- Logo (hide on phones to avoid overlap) -->
+      <div class="absolute left-4 top-1/2 -translate-y-1/2 hidden sm:block">
         <a href="./index.html" aria-label="Home" class="pointer-events-auto">
           <img src="/logo.jpg" alt="Troy High Logo"
                class="w-16 h-16 sm:w-20 sm:h-20 rounded-xl border object-cover"
@@ -134,7 +133,6 @@
     </footer>
   </main>
 
-  <!-- App logic -->
   <script type="module">
     import { initIndex } from './app.js';
     initIndex();
