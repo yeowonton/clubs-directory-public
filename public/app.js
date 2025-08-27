@@ -4,11 +4,14 @@ const PREFIX = location.pathname.startsWith('/club-directory') ? '/club-director
 const API_BASE = PREFIX || location.origin.replace(/\/$/, "");
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
+/** fetch text helper */
 async function fetchText(url, opts = {}) {
   const r = await fetch(url, { headers: { "Content-Type": "application/json", ...(opts.headers||{}) }, ...opts });
   const t = await r.text();
   return { ok: r.ok, status: r.status, text: t };
 }
+
+/** normalize urls for website links */
 function normalizeWebsiteUrl(url) {
   if (!url) return "";
   const u = String(url).trim();
@@ -143,6 +146,12 @@ export function initIndex() {
     return clubFields.some(f => synonyms.has(f));
   }
 
+  function cardContact(c) {
+    if (!c.contact_email) return '';
+    const mail = esc(c.contact_email.trim());
+    return `<a class="text-brand underline text-sm font-semibold" href="mailto:${mail}">Email</a>`;
+  }
+
   function render() {
     if (!window.__clubs) return;
 
@@ -163,7 +172,8 @@ export function initIndex() {
         ...(c.fields||[]), c.subject || '',
         ...(c.subfield||[]),
         ...catKeys, ...catLabels,
-        c.prerequisites || '', c.meeting_room || ''
+        c.prerequisites || '', c.meeting_room || '',
+        c.contact_email || ''
       ].join(' ').toLowerCase();
 
       const matchesQ = !q || txt.includes(q);
@@ -195,9 +205,11 @@ export function initIndex() {
       ? `<a class="text-brand underline text-sm font-semibold" href="${websiteHref}" target="_blank" rel="noopener noreferrer">Website ↗</a>`
       : '';
 
-    const nameHTML = `<h3 class="text-black font-black text-xl sm:text-2xl leading-snug tracking-tight">${c.name}</h3>`;
+    const contactTag = cardContact(c);
+    const rightLinks = [websiteTag, contactTag].filter(Boolean).join(' • ');
 
-    // Show ALL focuses (fields); fallback to legacy subject if needed
+    const nameHTML = `<h3 class="text-black font-black text-xl sm:text-2xl leading-snug tracking-tight">${esc(c.name)}</h3>`;
+
     const focusVals = (Array.isArray(c.fields) && c.fields.length) ? c.fields : (c.subject ? [c.subject] : []);
     const focusRow = focusVals.map(v => pastelBadge(v, FIELD_PALETTE[v])).join(" ");
 
@@ -224,7 +236,6 @@ export function initIndex() {
       ? `<div class="text-xs text-neutral-600 leading-relaxed"><span class="font-semibold">Details:</span> ${esc(c.prerequisites)}</div>`
       : '';
 
-    // Description with clamp + toggle
     const fullDesc = c.description || 'No description yet.';
     const shortDesc = fullDesc.length > 280 ? fullDesc.slice(0, 280) + '…' : fullDesc;
 
@@ -234,7 +245,7 @@ export function initIndex() {
   <div class="p-4">
     <div class="flex items-start justify-between gap-3">
       ${nameHTML}
-      ${websiteTag}
+      <div class="flex items-center gap-2">${rightLinks}</div>
     </div>
     <div class="mt-3 space-y-3 text-sm">
       ${focusRow ? `<div class="space-y-1">${label('Focus')}<div class="flex flex-wrap gap-2">${focusRow}</div></div>` : ''}
@@ -290,9 +301,13 @@ export function initPresidents() {
   const prereqWrap = document.getElementById('prereq_text_wrap');
   const stemWrap = document.getElementById('stemSubfieldsWrap');
 
+  // Custom meeting frequency handler
+  const mfSelect = document.getElementById('mf_select');
+  const mfCustom = document.getElementById('mf_custom');
+
   function getCheckedValues(name){
     return [...form.querySelectorAll(`input[name="${name}"]:checked`)].map(x=>x.value);
-  }
+    }
   function getRadio(name){
     const n = form.querySelector(`input[name="${name}"]:checked`);
     return n ? n.value : '';
@@ -306,6 +321,10 @@ export function initPresidents() {
     if (e.target.name === 'meeting_time_type') {
       const v = getRadio('meeting_time_type');
       mtRange.classList.toggle('hidden', v !== 'after_school');
+    }
+    if (e.target === mfSelect) {
+      const isCustom = mfSelect.value === 'custom';
+      mfCustom.classList.toggle('hidden', !isCustom);
     }
   });
 
@@ -403,7 +422,10 @@ export function initPresidents() {
     e.preventDefault();
     status.textContent = 'Submitting…';
 
-    const freq = form.querySelector('select[name="meeting_frequency"]').value;
+    const freqSel = form.querySelector('select[name="meeting_frequency"]').value;
+    const freqCustom = (document.getElementById('mf_custom')?.value || '').trim();
+    const meeting_frequency = (freqSel === 'custom') ? freqCustom : freqSel;
+
     const timeType = (form.querySelector('input[name="meeting_time_type"]:checked')||{}).value || '';
     const days = [...form.querySelectorAll('input[name="meeting_days"]:checked')].map(x=>x.value);
     const afterRange = form.querySelector('input[name="meeting_time_range"]').value.trim();
@@ -411,14 +433,14 @@ export function initPresidents() {
     const meetingRoomVal = (form.querySelector('input[name="meeting_room"]')?.value || '').trim();
 
     const setErr = (k, s)=>{ const el = form.querySelector(`[data-error="${k}"]`); if (el) el.classList.toggle('hidden', !s); };
-    setErr('meeting_frequency', !freq);
+    setErr('meeting_frequency', !meeting_frequency);
     setErr('meeting_time_type', !timeType);
     setErr('meeting_days', days.length === 0);
     setErr('meeting_time_range', (timeType === 'after_school' && !afterRange));
     setErr('description', words > 200);
     setErr('meeting_room', !meetingRoomVal);
 
-    const hasError = (!freq || !timeType || days.length===0 || (timeType==='after_school' && !afterRange) || !meetingRoomVal || words>200);
+    const hasError = (!meeting_frequency || !timeType || days.length===0 || (timeType==='after_school' && !afterRange) || !meetingRoomVal || words>200);
     if (hasError) { status.textContent = 'Please complete the required fields.'; return; }
 
     const fd = new FormData(form);
@@ -426,16 +448,19 @@ export function initPresidents() {
     const rawWebsite = fd.get('website_url') || '';
     const website_url = normalizeWebsiteUrl(rawWebsite);
 
+    const contact_email = (fd.get('contact_email') || '').trim();
+
     const payload = {
       club_name: fd.get('club_name'),
       president_submit_password: fd.get('president_submit_password'),
-      president_code: fd.get('president_code'),
+      // president_code intentionally removed (no longer used)
+      contact_email: contact_email || undefined,
       website_url,
       fields: [...form.querySelectorAll('input[name="fields"]:checked')].map(x=>x.value),
       categories: [...form.querySelectorAll('input[name="categories"]:checked')].map(x=>x.value),
       subfields: [...form.querySelectorAll('input[name="subfields"]:checked')].map(x=>x.value),
       meeting_days: days,
-      meeting_frequency: freq,
+      meeting_frequency,
       meeting_time_type: timeType,
       meeting_time_range: afterRange,
       meeting_room: meetingRoomVal,
@@ -486,6 +511,7 @@ export function initPresidents() {
       document.getElementById('mt_range').classList.add('hidden');
       document.getElementById('prereq_text_wrap')?.classList.add('hidden');
       document.getElementById('stemSubfieldsWrap')?.classList.add('hidden');
+      document.getElementById('mf_custom')?.classList.add('hidden');
       const wc = document.getElementById('wordCount');
       if (wc) wc.innerHTML = '<span class="font-semibold">0</span> / 200 words';
       ['#fieldsGroup','#categoriesGroup','#subfieldsGroup'].forEach(w=> {
@@ -562,19 +588,6 @@ export function initAdmin() {
     table.querySelectorAll('button[data-action]').forEach(btn=>{
       btn.addEventListener('click', onAction);
     });
-    table.querySelectorAll('button[data-reveal]').forEach(btn=>{
-      btn.addEventListener('click', (e)=>{
-        const span = e.currentTarget.previousElementSibling;
-        const full = span.dataset.full;
-        if (span.textContent.includes('•')) {
-          span.textContent = full || '';
-          e.currentTarget.textContent = 'Hide';
-        } else {
-          span.textContent = full ? '••••••' : '';
-          e.currentTarget.textContent = 'Show';
-        }
-      });
-    });
   }
 
   function rowHTML(c){
@@ -583,25 +596,24 @@ export function initAdmin() {
       ...(c.fields||[]),
       ...((c.categories||[]).map(k=>CATEGORY_KEY_TO_DISPLAY[k]||k))
     ].join(' • ');
-    const codeMasked = c.president_code ? '••••••' : '';
+
     const websiteHref = normalizeWebsiteUrl(c.website_url);
     const website = websiteHref ? `<a class="text-brand underline" href="${websiteHref}" target="_blank" rel="noopener">Open ↗</a>` : '';
+
+    const contact = c.contact_email ? `<a class="text-brand underline" href="mailto:${esc(c.contact_email)}">${esc(c.contact_email)}</a>` : '';
 
     return `
 <tr class="border-b" data-id="${c.id}">
   <td class="px-3 py-2">
-    <div class="font-semibold">${c.name}</div>
+    <div class="font-semibold">${esc(c.name)}</div>
     <div class="text-neutral-600 text-xs">${meta}</div>
   </td>
-  <td class="px-3 py-2">
-    <span data-full="${c.president_code || ''}">${codeMasked}</span>
-    ${c.president_code ? '<button class="ml-2 text-xs px-2 py-0.5 border rounded hover:bg-neutral-50" data-reveal>Show</button>' : ''}
-  </td>
+  <td class="px-3 py-2">${contact}</td>
   <td class="px-3 py-2">${website || ''}</td>
   <td class="px-3 py-2">${(c.meeting_days||[]).join(", ")}</td>
   <td class="px-3 py-2">${c.meeting_room || ''}</td>
   <td class="px-3 py-2">${c.status||'approved'}</td>
-  <td class="px-3 py-2">${desc}</td>
+  <td class="px-3 py-2">${esc(desc)}</td>
   <td class="px-3 py-2">
     <div class="flex flex-wrap gap-2">
       <button class="px-3 py-1 rounded-lg border-2 border-brand text-brand font-bold hover:text-brand700 hover:border-brand700" data-action="edit">Edit</button>
