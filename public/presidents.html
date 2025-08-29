@@ -85,7 +85,7 @@
         <div class="grid sm:grid-cols-2 gap-4 mt-4">
           <div>
             <label class="font-bold text-sm">President Contact Email</label>
-            <input name="contact_email" type="email" class="mt-1 border border-neutral-300 rounded-lg px-3 py-2 w-full" placeholder="president@schoolmail.com" />
+            <input name="president_contact" type="email" class="mt-1 border border-neutral-300 rounded-lg px-3 py-2 w-full" placeholder="president@schoolmail.com" />
             <p class="text-xs text-neutral-600 mt-1">Shown publicly so students can reach you.</p>
           </div>
           <div>
@@ -180,12 +180,12 @@
         <div class="grid sm:grid-cols-2 gap-4">
           <div>
             <label class="font-bold text-sm">Meeting Frequency <span class="text-brand">*</span></label>
-            <select name="meeting_frequency" required class="mt-1 border border-neutral-300 rounded-lg px-3 py-2 w-full" id="mf_select">
+            <select name="meeting_frequency" required class="mt-1 border border-neutral-300 rounded-lg px-3 py-2 w-full">
               <option value="">Select…</option>
               <option value="weekly">Weekly</option>
               <option value="biweekly">Biweekly</option>
               <option value="monthly">Monthly</option>
-              <option value="custom">Custom…</option>
+              <option value="event">Not applicable / ad-hoc (explain in description)</option>
             </select>
             <input id="mf_custom" name="meeting_frequency_custom" class="mt-2 border border-neutral-300 rounded-lg px-3 py-2 w-full hidden" placeholder='e.g., "First Tuesday of each month" or "Event-based"' />
             <p class="text-xs text-red-600 mt-1 hidden" data-error="meeting_frequency">Please select a meeting frequency.</p>
