@@ -242,15 +242,15 @@ export function initIndex() {
   function labelHTML(text) {
     return '<span class="uppercase tracking-wide text-[10px] font-bold text-neutral-500">' + esc(text) + '</span>';
   }
-  
-function meetingTimeText(c) {
-  if (c.meeting_time_type === 'lunch') return 'Lunch';
-  if (c.meeting_time_type === 'after_school') {
-    var label = 'Others';
-    return c.meeting_time_range ? (label + ' (' + esc(c.meeting_time_range) + ')') : label;
+
+  function meetingTimeText(c) {
+    if (c.meeting_time_type === 'lunch') return 'Lunch';
+    if (c.meeting_time_type === 'after_school') {
+      var label = 'Others';
+      return c.meeting_time_range ? (label + ' (' + esc(c.meeting_time_range) + ')') : label;
+    }
+    return '';
   }
-  return '';
-}
 
   function cardHTML(c) {
     var websiteHref = normalizeWebsiteUrl(c.website_url);
@@ -286,7 +286,6 @@ function meetingTimeText(c) {
     for (var d = 0; d < md.length; d++) scheduleRowParts.push(chip(md[d]));
 
     if (c.meeting_frequency) {
-      // show "N/a" when backend stores "event" (Not applicable; specified in description)
       var freqLabel = (c.meeting_frequency === 'event') ? 'N/a' : c.meeting_frequency;
       scheduleRowParts.push(chip(freqLabel));
     }
@@ -300,12 +299,13 @@ function meetingTimeText(c) {
       ? '<div class="space-y-1">' + labelHTML('Location') + '<div class="flex flex-wrap gap-2">' + chip(c.meeting_room) + '</div></div>'
       : '';
 
-    // NEW: Contact row (clickable email/URL)
+    // Contact row (clickable email or URL)
     var contactRow = '';
     if (c.president_contact) {
       var ch = contactHref(c.president_contact);
+      var isMail = /^mailto:/i.test(ch);
       var contactInner = ch
-        ? ('<a class="underline text-brand" href="' + esc(ch) + '" target="_blank" rel="noopener noreferrer">' + esc(c.president_contact) + '</a>')
+        ? ('<a class="underline text-brand" href="' + esc(ch) + '"' + (isMail ? '' : ' target="_blank" rel="noopener noreferrer"') + '>' + esc(c.president_contact) + (isMail ? '' : ' ↗') + '</a>')
         : esc(c.president_contact);
       contactRow = '<div class="space-y-1">' + labelHTML('Contact') + '<div>' + contactInner + '</div></div>';
     }
@@ -338,7 +338,7 @@ function meetingTimeText(c) {
     if (subs.length) html += '<div class="space-y-1">' + labelHTML('Subfields') + '<div class="flex flex-wrap gap-2">' + subRow + '</div></div>';
     if (scheduleRow) html += '<div class="space-y-1">' + labelHTML('Schedule') + '<div class="flex flex-wrap gap-2">' + scheduleRow + '</div></div>';
     html +=       locationRow;
-    if (contactRow) html += contactRow; // <-- inserted here
+    if (contactRow) html += contactRow;
     if (reqChips || prereqDetail) html += '<div class="space-y-1">' + labelHTML('Eligibility & Perks') + '<div class="flex flex-wrap gap-2 items-center">' + reqChips + '</div>' + prereqDetail + '</div>';
     html +=       '<div class="space-y-1">' + labelHTML('Description') +
                     '<p class="text-neutral-800 leading-relaxed" data-desc-full="' + encodeURIComponent(fullDesc) + '">' +
@@ -617,12 +617,10 @@ export function initPresidents() {
     var website_url = normalizeWebsiteUrl(rawWebsite);
     var president_contact = (fd.get('president_contact') || '').trim();
 
-    // IMPORTANT: If your dropdown label says “Not applicable; specified in description”,
-    // keep its value attribute as "event" to match server schema.
     var payload = {
       club_name: fd.get('club_name'),
       president_submit_password: fd.get('president_submit_password'),
-      president_contact: president_contact || undefined, // optional
+      president_contact: president_contact || undefined,
       website_url: website_url,
       fields: (function () {
         var arr = [], nodes = form.querySelectorAll('input[name="fields"]:checked');
@@ -733,8 +731,8 @@ function sha256HexBrowser(s) {
   });
 }
 export function initAdmin() {
-  var loginSection = byId('adminLogin');               // <section id="adminLogin">
-  var formEl = loginSection ? loginSection.querySelector('form') : null; // the <form> inside
+  var loginSection = byId('adminLogin');
+  var formEl = loginSection ? loginSection.querySelector('form') : null;
   var panel = byId('adminPanel');
   var table = byId('adminTableBody');
   if (!formEl || !panel || !table) return;
@@ -750,35 +748,59 @@ export function initAdmin() {
     return fetch(url, fopts).then(function (r) {
       return r.text().then(function (t) {
         if (!r.ok) throw new Error(t || ('HTTP ' + r.status));
-        return JSON.parse(t);
+        try { return JSON.parse(t); } catch (e) { return t; }
       });
     });
   }
 
+  // Robust login: send hash if available; fall back to plaintext+header auth if needed.
   formEl.addEventListener('submit', function (e) {
     e.preventDefault();
     var fd = new FormData(formEl);
     var code = fd.get('code') || '';
 
-    sha256HexBrowser(code).then(function (hash) {
-      // send either hash or code (server accepts both)
-      var body = hash ? JSON.stringify({ code_hash: hash }) : JSON.stringify({ code: code });
-      return _fetchJSON(API_BASE + '/api/admin/login', { method: 'POST', body: body }).then(function () {
-        // persist for subsequent authorized requests
-        if (hash) {
-          localStorage.setItem('ADMIN_HASH', hash);
-          localStorage.removeItem('ADMIN_CODE');
-        } else {
-          localStorage.setItem('ADMIN_CODE', code);
-        }
-        // hide login section, show panel, load data
-        loginSection.classList.add('hidden');
-        panel.classList.remove('hidden');
-        load();
+    function successStoreAndLoad(hashUsed) {
+      if (hashUsed) {
+        localStorage.setItem('ADMIN_HASH', hashUsed);
+        localStorage.removeItem('ADMIN_CODE');
+      } else {
+        localStorage.setItem('ADMIN_CODE', code);
+        localStorage.removeItem('ADMIN_HASH');
+      }
+      loginSection.classList.add('hidden');
+      panel.classList.remove('hidden');
+      load();
+    }
+
+    function tryHeaderFallback() {
+      return fetchText(API_BASE + '/api/admin/clubs', {
+        headers: { 'x-admin-code': code }
+      }).then(function (r) {
+        if (!r.ok) throw new Error('unauthorized');
+        successStoreAndLoad(null);
       });
-    }).catch(function () {
-      alert('Invalid code');
-    });
+    }
+
+    var p = sha256HexBrowser(code);
+    var doLogin = function (hash) {
+      var body = hash ? JSON.stringify({ code_hash: hash }) : JSON.stringify({ code: code });
+      _fetchJSON(API_BASE + '/api/admin/login', { method: 'POST', body: body })
+        .then(function () { successStoreAndLoad(hash); })
+        .catch(function () {
+          // If POST /login fails (or blocked), try header-based auth directly.
+          tryHeaderFallback().catch(function () {
+            alert('Invalid code');
+          });
+        });
+    };
+
+    if (p && typeof p.then === 'function') {
+      p.then(doLogin).catch(function () {
+        tryHeaderFallback().catch(function () { alert('Invalid code'); });
+      });
+    } else {
+      doLogin(null);
+    }
   });
 
   function authHeaders() {
@@ -813,6 +835,9 @@ export function initAdmin() {
     html +=   '<td class="px-3 py-2">' + esc(c.status || 'approved') + '</td>';
     html +=   '<td class="px-3 py-2">' + esc(short) + '</td>';
     html +=   '<td class="px-3 py-2"><div class="flex flex-wrap gap-2">';
+    if (String(c.status) !== 'approved') {
+      html +=   '<button class="px-3 py-1 rounded-lg border-2 border-emerald-600 text-emerald-600 font-bold hover:text-emerald-700 hover:border-emerald-700" data-action="approve">Approve</button>';
+    }
     html +=     '<button class="px-3 py-1 rounded-lg border-2 border-brand text-brand font-bold hover:text-brand700 hover:border-brand700" data-action="edit">Edit</button>';
     html +=     '<button class="px-3 py-1 rounded-lg border-2 border-red-500 text-red-500 font-bold hover:text-red-700 hover:border-red-700" data-action="delete">Delete</button>';
     html +=   '</div></td>';
@@ -833,8 +858,11 @@ export function initAdmin() {
         btns[j].addEventListener('click', onAction);
       }
     }).catch(function (e) {
-      alert('Failed to load clubs');
+      // If we have stored creds but failed, show login again
+      panel.classList.add('hidden');
+      if (loginSection) loginSection.classList.remove('hidden');
       console.error(e);
+      alert('Failed to load clubs');
     });
   }
 
@@ -863,10 +891,27 @@ export function initAdmin() {
             if (!r2.ok) return alert('Failed to update');
             var cells = tr.querySelectorAll('td');
             var short = (newDesc || '').slice(0, 120) + ((newDesc || '').length > 120 ? '…' : '');
-            cells[6].textContent = short;
+            cells[6].textContent = short; // description cell
           });
         }
       });
+    } else if (action === 'approve') {
+      fetchText(API_BASE + '/api/clubs/' + id + '/approve', { method: 'POST', headers: headers }).then(function (r) {
+        if (!r.ok) return alert('Approve failed');
+        var cells = tr.querySelectorAll('td');
+        cells[5].textContent = 'approved'; // status cell
+        btn.parentNode.removeChild(btn);    // remove Approve button
+      });
     }
   }
+
+  // Auto-auth if credentials are already stored
+  (function autoAuth() {
+    var hasHash = !!localStorage.getItem('ADMIN_HASH');
+    var hasCode = !!localStorage.getItem('ADMIN_CODE');
+    if (!hasHash && !hasCode) return;
+    if (loginSection) loginSection.classList.add('hidden');
+    panel.classList.remove('hidden');
+    load();
+  })();
 }

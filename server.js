@@ -18,6 +18,16 @@ const port = Number(process.env.PORT || 3000);
 app.set('trust proxy', true);
 
 /* ---------------- Parsers + static ---------------- */
+app.use((req, res, next) => {
+  if (req.path.endsWith('.html') || req.path === '/' || req.path === '/index') {
+    res.set('Cache-Control', 'no-store');
+  }
+  if (req.path.endsWith('/app.js') || req.path === '/app.js') {
+    res.set('Cache-Control', 'no-store');
+  }
+  next();
+});
+
 app.use(express.static(publicDir));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
