@@ -762,15 +762,17 @@ export function initAdmin() {
     function successStoreAndLoad(hashUsed) {
       if (hashUsed) {
         localStorage.setItem('ADMIN_HASH', hashUsed);
-        localStorage.removeItem('ADMIN_CODE');
+        sessionStorage.removeItem('ADMIN_CODE');
       } else {
-        localStorage.setItem('ADMIN_CODE', code);
+        // only keep plaintext for this session (don’t persist across reloads)
+        sessionStorage.setItem('ADMIN_CODE', code);
         localStorage.removeItem('ADMIN_HASH');
       }
-      loginSection.classList.add('hidden');
+      if (loginSection) loginSection.classList.add('hidden');
       panel.classList.remove('hidden');
       load();
     }
+
 
     function tryHeaderFallback() {
       return fetchText(API_BASE + '/api/admin/clubs', {
@@ -805,7 +807,7 @@ export function initAdmin() {
 
   function authHeaders() {
     var h = {};
-    var code = localStorage.getItem('ADMIN_CODE') || '';
+    var code = sessionStorage.getItem('ADMIN_CODE') || '';
     var hash = localStorage.getItem('ADMIN_HASH') || '';
     if (hash) h['x-admin-hash'] = hash;
     if (code) h['x-admin-code'] = code;
@@ -906,12 +908,28 @@ export function initAdmin() {
   }
 
   // Auto-auth if credentials are already stored
+  // Verify stored creds before showing the panel
   (function autoAuth() {
-    var hasHash = !!localStorage.getItem('ADMIN_HASH');
-    var hasCode = !!localStorage.getItem('ADMIN_CODE');
-    if (!hasHash && !hasCode) return;
-    if (loginSection) loginSection.classList.add('hidden');
-    panel.classList.remove('hidden');
-    load();
+    var hash = localStorage.getItem('ADMIN_HASH');
+    var code = sessionStorage.getItem('ADMIN_CODE'); // note: sessionStorage (see #2)
+    if (!hash && !code) return;
+
+    var headers = {};
+    if (hash) headers['x-admin-hash'] = hash;
+    if (code) headers['x-admin-code'] = code;
+
+    _fetchJSON(API_BASE + '/api/admin/clubs', { headers: headers })
+      .then(function () {
+        // only now show the panel
+        if (loginSection) loginSection.classList.add('hidden');
+        panel.classList.remove('hidden');
+        load();
+      })
+      .catch(function () {
+        // creds invalid; clear and keep login visible
+        localStorage.removeItem('ADMIN_HASH');
+        sessionStorage.removeItem('ADMIN_CODE');
+      });
   })();
+
 }
