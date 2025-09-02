@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Clubs Admin</title>
+  <title>Admin – Troy High Clubs Directory</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Tailwind -->
+  <!-- Tailwind (built locally to /public/styles.css) -->
   <link href="/styles.css" rel="stylesheet">
 
   <!-- Fancy title font -->
@@ -19,11 +19,12 @@
   <meta name="theme-color" content="#e91e63">
 </head>
 <body class="bg-white text-black">
+  <!-- Header -->
   <header class="relative text-white border-b-4 border-brand bg-gradient-to-r from-black via-neutral-900 to-black">
     <div class="pointer-events-none absolute inset-0 opacity-20"
          style="background-image: radial-gradient(600px 200px at 50% -40px, rgba(233,30,99,.25), transparent);"></div>
     <div class="max-w-6xl mx-auto flex items-center justify-center py-7 px-4">
-      <!-- Logo (hide on phones to avoid overlap) -->
+      <!-- Logo -->
       <div class="absolute left-4 top-1/2 -translate-y-1/2 hidden sm:block">
         <a href="./index.html" aria-label="Home" class="pointer-events-auto">
           <img src="/logo.jpg" alt="Troy High Logo"
@@ -31,16 +32,17 @@
                style="border-color:#dc143c" />
         </a>
       </div>
-      <!-- Centered title -->
+      <!-- Title -->
       <div class="text-center">
-        <h1 class="m-0 font-extrabold text-3xl sm:text-4xl font-display bg-gradient-to-r from-brand to-brand700 bg-clip-text text-transparent">
-          Admin
+        <h1 class="font-extrabold text-3xl sm:text-4xl font-display bg-gradient-to-r from-brand to-brand700 bg-clip-text text-transparent">
+          Admin Dashboard
         </h1>
-        <p class="opacity-90 mt-1 text-sm sm:text-base">Manage submissions & content</p>
+        <p class="opacity-90 mt-1 text-sm sm:text-base">Manage all clubs and submissions</p>
       </div>
     </div>
   </header>
 
+  <!-- Navbar -->
   <nav class="bg-neutral-100 border-b border-neutral-300 flex flex-wrap gap-4 justify-center px-4 py-2">
     <a class="font-bold hover:text-brand" href="./index.html">All Clubs</a>
     <a class="font-bold hover:text-brand" href="./presidents.html">President Submission</a>
@@ -48,34 +50,55 @@
   </nav>
 
   <main class="max-w-6xl mx-auto p-5">
-    <section class="mb-6">
-      <form id="adminLogin" class="flex gap-2">
-        <input name="code" type="text" placeholder="Admin code" class="border rounded px-3 py-2 w-64" />
-        <button class="bg-brand text-white font-bold rounded px-3 py-2">Login</button>
+    <!-- Login form -->
+    <section id="adminLogin" class="bg-neutral-50 border border-neutral-300 rounded-2xl p-6 shadow-sm">
+      <h2 class="text-xl font-extrabold font-display border-l-4 border-brand pl-3 mb-4">Admin Login</h2>
+      <form class="space-y-5">
+        <label class="block">
+          <span class="text-sm font-semibold text-neutral-700">Admin Code</span>
+          <input type="password" name="code" required class="mt-1 w-full border border-neutral-300 rounded-lg px-3 py-2" placeholder="Enter admin code" />
+        </label>
+        <button type="submit" class="mt-2 bg-brand hover:bg-brand600 text-white font-bold px-4 py-2 rounded-lg shadow-sm">
+          Login
+        </button>
       </form>
     </section>
 
-    <section id="adminPanel" class="hidden">
-      <div class="overflow-auto border rounded">
-        <table class="min-w-[800px] w-full text-sm">
-          <thead class="bg-neutral-100">
+    <!-- Admin panel (hidden until login) -->
+    <section id="adminPanel" class="hidden mt-8">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-extrabold font-display border-l-4 border-brand pl-3">All Clubs</h2>
+      </div>
+      <div class="overflow-x-auto bg-white border border-neutral-300 rounded-xl shadow-sm">
+        <table class="w-full text-sm">
+          <thead class="bg-neutral-100 border-b border-neutral-300 text-left">
             <tr>
-              <th class="text-left px-3 py-2">Club</th>
-              <th class="text-left px-3 py-2">President Code</th>
-              <th class="text-left px-3 py-2">Website</th>
-              <th class="text-left px-3 py-2">Days</th>
-              <th class="text-left px-3 py-2">Room</th>
-              <th class="text-left px-3 py-2">Status</th>
-              <th class="text-left px-3 py-2">Description</th>
-              <th class="text-left px-3 py-2">Actions</th>
+              <th class="px-3 py-2">Name</th>
+              <th class="px-3 py-2">President Contact</th>
+              <th class="px-3 py-2">Website</th>
+              <th class="px-3 py-2">Days</th>
+              <th class="px-3 py-2">Room</th>
+              <th class="px-3 py-2">Status</th>
+              <th class="px-3 py-2">Description</th>
+              <th class="px-3 py-2">Actions</th>
             </tr>
           </thead>
-          <tbody id="adminTableBody"></tbody>
+          <tbody id="adminTableBody" class="divide-y divide-neutral-200">
+            <!-- Populated by app.js -->
+          </tbody>
         </table>
       </div>
     </section>
+
+    <!-- Footer -->
+    <footer class="text-center text-neutral-600 mt-10 relative">
+      <a class="text-brand font-bold" href="./TWEB/" target="_blank" rel="noopener">Troy Web Dev</a> •
+      <a class="underline" href="mailto:yeowonyoon0109@gmail.com">yeowonyoon0109@gmail.com</a>
+      <span class="invisible absolute -bottom-2 left-1/2 -translate-x-1/2 text-[10px] select-none">made by Yeowon Yoon</span>
+    </footer>
   </main>
 
+  <!-- JS -->
   <script type="module">
     import { initAdmin } from './app.js';
     initAdmin();

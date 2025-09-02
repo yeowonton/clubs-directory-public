@@ -2,7 +2,7 @@
 import 'dotenv/config';
 import express from 'express';
 import path from 'path';
-import fs from 'fs';
+import fs from 'fs'; // kept for parity; safe to remove if unused
 import crypto from 'crypto';
 import mysql from 'mysql2/promise';
 import { fileURLToPath } from 'url';
@@ -15,15 +15,13 @@ const publicDir = path.join(__dirname, 'public');
 /* ---------------- App ---------------- */
 const app = express();
 const port = Number(process.env.PORT || 3000);
-app.set('trust proxy', true); // correct client IP behind proxies
+app.set('trust proxy', true);
 
 /* ---------------- Parsers + static ---------------- */
 app.use(express.static(publicDir));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
-
-app.use((err, req, res, next) => {
-  // Body-parser JSON error
+app.use((err, _req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
     console.error('[json] parse error:', err.message);
     return res.status(400).json({ error: 'invalid_json' });
@@ -42,7 +40,7 @@ app.get(['/admin', '/admin.html'], (_req, res) =>
   res.sendFile(path.join(publicDir, 'admin.html'))
 );
 
-/* ---------------- MySQL pool (MYSQL_URL or separate vars) ---------------- */
+/* ---------------- MySQL pool ---------------- */
 function poolFromUrl(url) {
   const u = new URL(url);
   return mysql.createPool({
@@ -56,7 +54,6 @@ function poolFromUrl(url) {
     ssl: u.searchParams.get('ssl') === 'true' ? { rejectUnauthorized: false } : undefined,
   });
 }
-
 const pool =
   process.env.MYSQL_URL && process.env.MYSQL_URL.trim()
     ? poolFromUrl(process.env.MYSQL_URL)
@@ -72,49 +69,46 @@ const pool =
       });
 
 try {
-  const c = await pool.getConnection();
-  c.release();
+  const c = await pool.getConnection(); c.release();
   console.log('[db] OK connected');
 } catch (e) {
-  console.error('[db] connection failed (API calls will 500 until fixed):', e.code || e.message);
+  console.error('[db] connection failed:', e.code || e.message);
 }
 
 /* ---------------- Helpers ---------------- */
 const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS || 10 * 60 * 1000);
 const RATE_LIMIT_MAX_ATTEMPTS = Number(process.env.RATE_LIMIT_MAX_ATTEMPTS || 5);
-const __attempts = new Map(); // key -> [timestamps]
+const __attempts = new Map();
 const sha256Hex = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
 
 function rlKey(req, bucket) {
-  const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+  const ip = req.ip || (req.connection && req.connection.remoteAddress) || 'unknown';
   return `${bucket}:${ip}`;
 }
-function rlPurge(arr) {
-  const now = Date.now();
-  return arr.filter((ts) => now - ts < RATE_LIMIT_WINDOW_MS);
-}
-function rlIsLimited(req, bucket) {
-  const k = rlKey(req, bucket);
-  const arr = rlPurge(__attempts.get(k) || []);
-  __attempts.set(k, arr);
-  return arr.length >= RATE_LIMIT_MAX_ATTEMPTS;
-}
-function rlRecordFailure(req, bucket) {
-  const k = rlKey(req, bucket);
-  const arr = rlPurge(__attempts.get(k) || []);
-  arr.push(Date.now());
-  __attempts.set(k, arr);
-}
-function rlClear(req, bucket) {
-  __attempts.delete(rlKey(req, bucket));
-}
+function rlPurge(arr) { const now = Date.now(); return arr.filter(ts => now - ts < RATE_LIMIT_WINDOW_MS); }
+function rlIsLimited(req, bucket){ const k=rlKey(req,bucket); const arr=rlPurge(__attempts.get(k)||[]); __attempts.set(k,arr); return arr.length>=RATE_LIMIT_MAX_ATTEMPTS; }
+function rlRecordFailure(req,bucket){ const k=rlKey(req,bucket); const arr=rlPurge(__attempts.get(k)||[]); arr.push(Date.now()); __attempts.set(k,arr); }
+function rlClear(req,bucket){ __attempts.delete(rlKey(req,bucket)); }
 
+function getAdminCode() {
+  return (process.env.ADMIN_CODE ?? '').toString().trim();
+}
+function hasAdminConfigured() {
+  return getAdminCode().length > 0;
+}
 function isAuthorized(req) {
-  const admin = process.env.ADMIN_CODE || '';
-  const code = req.get('x-admin-code') || (req.body && req.body.code);
-  const hash = req.get('x-admin-hash') || (req.body && req.body.code_hash);
-  if (hash && hash === sha256Hex(admin)) return true;
-  if (code && code === admin) return true;
+  if (!hasAdminConfigured()) return false;
+  const admin = getAdminCode();
+  const adminHash = sha256Hex(admin);
+  // Accept from headers *or* body (so GETs and POSTs both work)
+  const headerHash = req.get('x-admin-hash') || '';
+  const headerCode = req.get('x-admin-code') || '';
+  const bodyHash   = (req.body && req.body.code_hash) || '';
+  const bodyCode   = (req.body && req.body.code) || '';
+  if (headerHash && headerHash === adminHash) return true;
+  if (headerCode && headerCode === admin)     return true;
+  if (bodyHash   && bodyHash   === adminHash) return true;
+  if (bodyCode   && bodyCode   === admin)     return true;
   return false;
 }
 
@@ -123,26 +117,43 @@ function normalizeWebsiteUrl(url) {
   const u = String(url).trim();
   if (!u) return null;
   if (/^https?:\/\//i.test(u)) return u;
+  if (u.startsWith('//')) return 'https:' + u;
   if (u.includes('.') || u.startsWith('www.')) return 'https://' + u.replace(/^\/+/, '');
   return u;
 }
 
-/* ---------------- Schema helpers (idempotent) ---------------- */
-// Works on MySQL 5.7 and 8/9. Uses DATABASE() so it’s correct for MYSQL_URL.
+/* ---------------- Idempotent schema helpers ---------------- */
 async function ensureColumnIfMissing(table, column, ddl) {
   const [[row]] = await pool.query(
-    `SELECT COUNT(*) AS n
-     FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+    `
+    SELECT COUNT(*) AS n
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?
+    `,
     [table, column]
   );
-  if (!row.n) {
-    await pool.query(ddl);
-    console.log(`[schema] Added ${table}.${column}`);
+  if (!row.n) { await pool.query(ddl); console.log(`[schema] Added ${table}.${column}`); }
+}
+
+async function dropIndexIfExists(table, indexName) {
+  const [rows] = await pool.query(
+    `
+    SELECT INDEX_NAME
+    FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME=? AND INDEX_NAME=?
+    `,
+    [table, indexName]
+  );
+  if (rows.length) {
+    await pool.query(`ALTER TABLE \`${table}\` DROP INDEX \`${indexName}\``);
+    console.log(`[schema] Dropped index ${table}.${indexName}`);
+    return true;
   }
+  return false;
 }
 
 async function ensureBaseTables() {
+  // New installs get unique name baked in; existing installs are migrated below.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS clubs (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -157,28 +168,22 @@ async function ensureBaseTables() {
       prerequisites VARCHAR(255) DEFAULT '',
       description TEXT,
       volunteer_hours TINYINT(1) NOT NULL DEFAULT 0,
-      president_code VARCHAR(64) NOT NULL,
+      president_code VARCHAR(64) NOT NULL DEFAULT '',
       status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'approved',
       website_url VARCHAR(512) DEFAULT NULL,
+      president_contact VARCHAR(255) DEFAULT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      UNIQUE KEY uq_name_code (name, president_code)
+      UNIQUE KEY uq_name (name)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 }
 
-async function ensureWebsiteColumn() {
+async function ensurePresidentContactColumn() {
   await ensureColumnIfMissing(
     'clubs',
-    'website_url',
-    `ALTER TABLE clubs ADD COLUMN website_url VARCHAR(512) DEFAULT NULL`
-  );
-}
-async function ensureMeetingRoomColumn() {
-  await ensureColumnIfMissing(
-    'clubs',
-    'meeting_room',
-    `ALTER TABLE clubs ADD COLUMN meeting_room VARCHAR(50) DEFAULT NULL`
+    'president_contact',
+    `ALTER TABLE clubs ADD COLUMN president_contact VARCHAR(255) DEFAULT NULL`
   );
 }
 
@@ -189,19 +194,21 @@ async function ensureMeetingDays() {
       name VARCHAR(20) NOT NULL UNIQUE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
-  // Try MySQL 8/9 style first; fallback to 5.7 VALUES() if needed
   try {
+    // MySQL 8+ style (alias)
     await pool.query(`
-      INSERT INTO meeting_days (id, name) VALUES
-        (1,'Monday'),(2,'Tuesday'),(3,'Wednesday'),(4,'Thursday'),(5,'Friday')
-      AS new
-      ON DUPLICATE KEY UPDATE name = new.name
+      INSERT INTO meeting_days (id,name) VALUES
+        (1,'Monday'),(2,'Tuesday'),(3,'Wednesday'),(4,'Thursday'),(5,'Friday'),
+        (6,'Saturday'),(7,'Sunday')
+      AS new ON DUPLICATE KEY UPDATE name=new.name
     `);
   } catch {
+    // MySQL <8 fallback
     await pool.query(`
-      INSERT INTO meeting_days (id, name) VALUES
-        (1,'Monday'),(2,'Tuesday'),(3,'Wednesday'),(4,'Thursday'),(5,'Friday')
-      ON DUPLICATE KEY UPDATE name = VALUES(name)
+      INSERT INTO meeting_days (id,name) VALUES
+        (1,'Monday'),(2,'Tuesday'),(3,'Wednesday'),(4,'Thursday'),(5,'Friday'),
+        (6,'Saturday'),(7,'Sunday')
+      ON DUPLICATE KEY UPDATE name=VALUES(name)
     `);
   }
 }
@@ -256,48 +263,34 @@ async function ensureClubFields() {
       CONSTRAINT fk_cf_club FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
-
-  // Legacy migrations (safe no-ops if already correct)
-  const [[hasFieldLabel]] = await pool.query(
-    `SELECT COUNT(*) n
-       FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME='club_fields'
-        AND COLUMN_NAME='field_label'`
-  );
-  if (!hasFieldLabel.n) {
-    const [[hasField]] = await pool.query(
-      `SELECT COUNT(*) n
-         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME='club_fields'
-          AND COLUMN_NAME='field'`
-    );
-    const [[hasLabel]] = await pool.query(
-      `SELECT COUNT(*) n
-         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME='club_fields'
-          AND COLUMN_NAME='label'`
-    );
-    if (hasField.n) {
-      await pool.query(`ALTER TABLE club_fields CHANGE COLUMN field field_label VARCHAR(100) NOT NULL`);
-    } else if (hasLabel.n) {
-      await pool.query(`ALTER TABLE club_fields CHANGE COLUMN label field_label VARCHAR(100) NOT NULL`);
-    } else {
-      await pool.query(`ALTER TABLE club_fields ADD COLUMN field_label VARCHAR(100) NOT NULL`);
-    }
-  }
-  try {
-    await pool.query(`ALTER TABLE club_fields DROP PRIMARY KEY, ADD PRIMARY KEY (club_id, field_label)`);
-  } catch {}
 }
 
-async function ensureUniqueIndex() {
+async function ensureUniqueNameIndex() {
+  // Migrate away from legacy unique (name, president_code) to unique(name)
+  await dropIndexIfExists('clubs', 'uq_name_code').catch(()=>{});
+  // Before adding, check for duplicate names (to avoid migration failure)
+  const [dups] = await pool.query(`
+    SELECT name, COUNT(*) AS n
+    FROM clubs
+    GROUP BY name
+    HAVING n > 1
+  `);
+  if (dups.length) {
+    console.warn(`[schema] Found ${dups.length} duplicate club names; cannot enforce unique(name) yet.`);
+    return;
+  }
   try {
-    await pool.query(`ALTER TABLE clubs ADD UNIQUE KEY uq_club_name_code (name, president_code)`);
-    console.log('[schema] Added unique index clubs(name, president_code)');
-  } catch {}
+    await pool.query(`ALTER TABLE clubs ADD UNIQUE KEY uq_name (name)`);
+    console.log('[schema] Ensured unique index clubs(name)');
+  } catch (e) {
+    if (e && String(e.code).includes('ER_DUP')) {
+      console.warn('[schema] Could not add unique(name): duplicate data exists.');
+    } else if (String(e.message || '').includes('Duplicate key name')) {
+      // index already exists; ignore
+    } else {
+      console.warn('[schema] unique(name) check:', e.code || e.message);
+    }
+  }
 }
 
 async function ensureSchema() {
@@ -307,16 +300,13 @@ async function ensureSchema() {
   await ensureLinkTables();
   await ensureClubCategories();
   await ensureClubFields();
-  await ensureWebsiteColumn();
-  await ensureMeetingRoomColumn();
-  await ensureUniqueIndex();
+  await ensurePresidentContactColumn();
+  await ensureUniqueNameIndex();
 }
 
-// run schema bootstrap
 (async () => {
   try {
-    const [r] = await pool.query('SELECT 1');
-    if (r) console.log('[db] ping ok');
+    const [r] = await pool.query('SELECT 1'); if (r) console.log('[db] ping ok');
     await ensureSchema();
   } catch (e) {
     console.error('[schema] failed:', e.code || e.message);
@@ -324,16 +314,10 @@ async function ensureSchema() {
 })();
 
 /* ---------------- Constants ---------------- */
-const daysLookup = new Map([
-  ['Monday', 1],
-  ['Tuesday', 2],
-  ['Wednesday', 3],
-  ['Thursday', 4],
-  ['Friday', 5],
-]);
-const ALLOWED_CATEGORIES = new Set(['competition', 'activity', 'community', 'research', 'advocacy', 'outreach']);
-const MEETING_FREQUENCIES = new Set(['weekly', 'biweekly', 'monthly', 'event']);
-const TIME_TYPES = new Set(['lunch', 'after_school']);
+const daysLookup = new Map([['Monday',1],['Tuesday',2],['Wednesday',3],['Thursday',4],['Friday',5],['Saturday',6],['Sunday',7]]);
+const ALLOWED_CATEGORIES = new Set(['competition','activity','community','research','advocacy','outreach']);
+const MEETING_FREQUENCIES = new Set(['weekly','biweekly','monthly','event']); // 'event' == "Not applicable; specified in the description"
+const TIME_TYPES = new Set(['lunch','after_school']);
 
 /* ---------------- Health ---------------- */
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
@@ -343,69 +327,55 @@ app.get('/api/clubs', async (req, res) => {
   try {
     const includePending = req.query.includePending === '1';
     const [rows] = await pool.query(
-      `SELECT c.id, c.name, c.subject, c.meeting_time_type, c.meeting_time_range,
-              c.meeting_frequency, c.prereq_required, c.prerequisites, c.description,
-              c.open_to_all, c.volunteer_hours, c.status, c.website_url, c.meeting_room
-         FROM clubs c
-        WHERE ? OR c.status='approved'
-        ORDER BY c.name`,
+      `
+      SELECT c.id, c.name, c.subject, c.meeting_time_type, c.meeting_time_range,
+             c.meeting_frequency, c.prereq_required, c.prerequisites, c.description,
+             c.open_to_all, c.volunteer_hours, c.status, c.website_url, c.meeting_room,
+             c.president_contact
+        FROM clubs c
+       WHERE ? OR c.status='approved'
+       ORDER BY c.name
+      `,
       [includePending ? 1 : 0]
     );
-    const ids = rows.map((r) => r.id);
+    const ids = rows.map(r => r.id);
     if (!ids.length) return res.json({ clubs: [] });
 
-    const [sf] = await pool.query(
-      `SELECT cs.club_id, s.label
-         FROM club_subfields cs
-         JOIN subfields s ON s.id=cs.subfield_id
-        WHERE cs.club_id IN (?)`,
+    const [sf]   = await pool.query(
+      `SELECT cs.club_id, s.label FROM club_subfields cs JOIN subfields s ON s.id=cs.subfield_id WHERE cs.club_id IN (?)`,
       [ids]
     );
-    const [md] = await pool.query(
-      `SELECT cmd.club_id, d.name
-         FROM club_meeting_days cmd
-         JOIN meeting_days d ON d.id=cmd.day_id
-        WHERE cmd.club_id IN (?)`,
+    const [md]   = await pool.query(
+      `SELECT cmd.club_id, d.name FROM club_meeting_days cmd JOIN meeting_days d ON d.id=cmd.day_id WHERE cmd.club_id IN (?)`,
       [ids]
     );
-    const [cats] = await pool.query(`SELECT club_id, category FROM club_categories WHERE club_id IN (?)`, [ids]);
-    const [fields] = await pool.query(`SELECT club_id, field_label FROM club_fields WHERE club_id IN (?)`, [ids]);
-
-    const byId = new Map(
-      rows.map((r) => [
-        r.id,
-        {
-          id: r.id,
-          name: r.name,
-          subject: r.subject,
-          meeting_time_type: r.meeting_time_type,
-          meeting_time_range: r.meeting_time_range,
-          meeting_frequency: r.meeting_frequency,
-          prereq_required: !!r.prereq_required,
-          prerequisites: r.prerequisites || '',
-          description: r.description || '',
-          open_to_all: !!r.open_to_all,
-          volunteer_hours: !!r.volunteer_hours,
-          status: r.status,
-          website_url: r.website_url || null,
-          meeting_room: r.meeting_room || '',
-          subfield: [],
-          meeting_days: [],
-          categories: [],
-          fields: [],
-        },
-      ])
+    const [cats] = await pool.query(
+      `SELECT club_id, category FROM club_categories WHERE club_id IN (?)`,
+      [ids]
+    );
+    const [flds] = await pool.query(
+      `SELECT club_id, field_label FROM club_fields WHERE club_id IN (?)`,
+      [ids]
     );
 
-    sf.forEach((r) => byId.get(r.club_id)?.subfield.push(r.label));
-    md.forEach((r) => byId.get(r.club_id)?.meeting_days.push(r.name));
-    cats.forEach((r) => byId.get(r.club_id)?.categories.push(r.category));
-    fields.forEach((r) => byId.get(r.club_id)?.fields.push(r.field_label));
+    const byId = new Map(rows.map(r => [r.id, {
+      id:r.id, name:r.name, subject:r.subject,
+      meeting_time_type:r.meeting_time_type, meeting_time_range:r.meeting_time_range,
+      meeting_frequency:r.meeting_frequency, prereq_required:!!r.prereq_required,
+      prerequisites:r.prerequisites||'', description:r.description||'',
+      open_to_all:!!r.open_to_all, volunteer_hours:!!r.volunteer_hours,
+      status:r.status, website_url:r.website_url||null, meeting_room:r.meeting_room||'',
+      president_contact:r.president_contact || null,
+      subfield:[], meeting_days:[], categories:[], fields:[]
+    }]));
 
-    // back-compat: if a club has no rows in club_fields, fall back to subject
-    byId.forEach((v) => {
-      if (!v.fields.length && v.subject) v.fields = [v.subject];
-    });
+    // (no optional chaining for wider Node compatibility)
+    sf.forEach(r => { const v = byId.get(r.club_id); if (v) v.subfield.push(r.label); });
+    md.forEach(r => { const v = byId.get(r.club_id); if (v) v.meeting_days.push(r.name); });
+    cats.forEach(r => { const v = byId.get(r.club_id); if (v) v.categories.push(r.category); });
+    flds.forEach(r => { const v = byId.get(r.club_id); if (v) v.fields.push(r.field_label); });
+
+    byId.forEach(v => { if (!v.fields.length && v.subject) v.fields = [v.subject]; });
 
     res.json({ clubs: [...byId.values()] });
   } catch (e) {
@@ -414,236 +384,166 @@ app.get('/api/clubs', async (req, res) => {
   }
 });
 
-/* ---------------- Public: get one ---------------- */
+/* ---------------- Public: one club ---------------- */
 app.get('/api/clubs/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
     const [[club]] = await pool.query(`SELECT * FROM clubs WHERE id=?`, [id]);
-    if (!club) return res.status(404).json({ error: 'not_found' });
-
-    const [sf] = await pool.query(
-      `SELECT s.label FROM club_subfields cs JOIN subfields s ON s.id=cs.subfield_id WHERE cs.club_id=?`,
-      [id]
-    );
-    const [md] = await pool.query(
-      `SELECT d.name FROM club_meeting_days cmd JOIN meeting_days d ON d.id=cmd.day_id WHERE cmd.club_id=?`,
-      [id]
-    );
+    if (!club) return res.status(404).json({ error:'not_found' });
+    const [sf]   = await pool.query(`SELECT s.label FROM club_subfields cs JOIN subfields s ON s.id=cs.subfield_id WHERE cs.club_id=?`, [id]);
+    const [md]   = await pool.query(`SELECT d.name  FROM club_meeting_days cmd JOIN meeting_days d ON d.id=cmd.day_id WHERE cmd.club_id=?`, [id]);
     const [cats] = await pool.query(`SELECT category FROM club_categories WHERE club_id=?`, [id]);
-    const [fields] = await pool.query(`SELECT field_label FROM club_fields WHERE club_id=?`, [id]);
-
-    club.subfield = sf.map((r) => r.label);
-    club.meeting_days = md.map((r) => r.name);
-    club.categories = cats.map((r) => r.category);
-    club.fields = fields.length ? fields.map((r) => r.field_label) : club.subject ? [club.subject] : [];
+    const [flds] = await pool.query(`SELECT field_label FROM club_fields WHERE club_id=?`, [id]);
+    club.subfield = sf.map(r=>r.label);
+    club.meeting_days = md.map(r=>r.name);
+    club.categories = cats.map(r=>r.category);
+    club.fields = flds.length ? flds.map(r=>r.field_label) : (club.subject ? [club.subject] : []);
     res.json({ club });
   } catch (e) {
     console.error('/api/clubs/:id error:', e.code || e.message);
-    res.status(500).json({ error: 'db_error' });
+    res.status(500).json({ error:'db_error' });
   }
 });
 
-/* ---------------- Admin: login (rate-limited) ---------------- */
+/* ---------------- Admin ---------------- */
 app.post('/api/admin/login', (req, res) => {
-  if (rlIsLimited(req, 'admin_login')) {
-    return res.status(429).json({ error: 'rate_limited' });
-  }
-  const { code, code_hash } = req.body || {};
-  const admin = process.env.ADMIN_CODE || '';
-  const ok = code ? code === admin : code_hash && code_hash === sha256Hex(admin);
-  if (!ok) {
-    rlRecordFailure(req, 'admin_login');
-    return res.status(401).json({ error: 'invalid' });
-  }
-  rlClear(req, 'admin_login');
-  res.json({ ok: true });
+  if (!hasAdminConfigured()) return res.status(500).json({ error: 'admin_not_configured' });
+  if (rlIsLimited(req, 'admin_login')) return res.status(429).json({ error:'rate_limited' });
+  const { code = '', code_hash = '' } = req.body || {};
+  const admin = getAdminCode();
+  const ok = (code && code === admin) || (code_hash && code_hash === sha256Hex(admin));
+  if (!ok) { rlRecordFailure(req,'admin_login'); return res.status(401).json({ error:'invalid' }); }
+  rlClear(req,'admin_login');
+  res.json({ ok:true });
 });
 
-/* ---------------- Admin: list clubs (incl. president_code) ---------------- */
 app.get('/api/admin/clubs', async (req, res) => {
-  if (!isAuthorized(req)) return res.status(401).json({ error: 'unauthorized' });
+  if (!isAuthorized(req)) return res.status(401).json({ error:'unauthorized' });
   try {
-    const [rows] = await pool.query(
-      `SELECT id, name, subject, meeting_time_type, meeting_time_range, meeting_frequency,
-              prereq_required, prerequisites, description, open_to_all, volunteer_hours,
-              status, president_code, website_url, meeting_room
-         FROM clubs
-        ORDER BY name`
-    );
-    const ids = rows.map((r) => r.id);
+    const [rows] = await pool.query(`
+      SELECT id, name, subject, meeting_time_type, meeting_time_range, meeting_frequency,
+             prereq_required, prerequisites, description, open_to_all, volunteer_hours,
+             status, website_url, meeting_room, president_contact
+      FROM clubs
+      ORDER BY name
+    `);
+    const ids = rows.map(r=>r.id);
     if (!ids.length) return res.json({ clubs: [] });
+    const [sf]   = await pool.query(`SELECT cs.club_id, s.label FROM club_subfields cs JOIN subfields s ON s.id=cs.subfield_id WHERE cs.club_id IN (?)`, [ids]);
+    const [md]   = await pool.query(`SELECT cmd.club_id, d.name FROM club_meeting_days cmd JOIN meeting_days d ON d.id=cmd.day_id WHERE cmd.club_id IN (?)`, [ids]);
+    const [cats] = await pool.query(`SELECT club_id, category    FROM club_categories WHERE club_id IN (?)`, [ids]);
+    const [flds] = await pool.query(`SELECT club_id, field_label FROM club_fields    WHERE club_id IN (?)`, [ids]);
 
-    const [sf] = await pool.query(
-      `SELECT cs.club_id, s.label
-         FROM club_subfields cs
-         JOIN subfields s ON s.id=cs.subfield_id
-        WHERE cs.club_id IN (?)`,
-      [ids]
-    );
-    const [md] = await pool.query(
-      `SELECT cmd.club_id, d.name
-         FROM club_meeting_days cmd
-         JOIN meeting_days d ON d.id=cmd.day_id
-        WHERE cmd.club_id IN (?)`,
-      [ids]
-    );
-    const [cats] = await pool.query(`SELECT club_id, category FROM club_categories WHERE club_id IN (?)`, [ids]);
-    const [fields] = await pool.query(`SELECT club_id, field_label FROM club_fields WHERE club_id IN (?)`, [ids]);
+    const byId = new Map(rows.map(r=>[r.id,{
+      id:r.id, name:r.name, subject:r.subject,
+      meeting_time_type:r.meeting_time_type, meeting_time_range:r.meeting_time_range,
+      meeting_frequency:r.meeting_frequency, prereq_required:!!r.prereq_required,
+      prerequisites:r.prerequisites||'', description:r.description||'',
+      open_to_all:!!r.open_to_all, volunteer_hours:!!r.volunteer_hours,
+      status:r.status, website_url:r.website_url||null, meeting_room:r.meeting_room||'',
+      president_contact:r.president_contact || null,
+      subfield:[], meeting_days:[], categories:[], fields:[]
+    }]));
 
-    const byId = new Map(
-      rows.map((r) => [
-        r.id,
-        {
-          id: r.id,
-          name: r.name,
-          subject: r.subject,
-          meeting_time_type: r.meeting_time_type,
-          meeting_time_range: r.meeting_time_range,
-          meeting_frequency: r.meeting_frequency,
-          prereq_required: !!r.prereq_required,
-          prerequisites: r.prerequisites || '',
-          description: r.description || '',
-          open_to_all: !!r.open_to_all,
-          volunteer_hours: !!r.volunteer_hours,
-          status: r.status,
-          president_code: r.president_code || '',
-          website_url: r.website_url || null,
-          meeting_room: r.meeting_room || '',
-          subfield: [],
-          meeting_days: [],
-          categories: [],
-          fields: [],
-        },
-      ])
-    );
+    sf.forEach(r => { const v = byId.get(r.club_id); if (v) v.subfield.push(r.label); });
+    md.forEach(r => { const v = byId.get(r.club_id); if (v) v.meeting_days.push(r.name); });
+    cats.forEach(r => { const v = byId.get(r.club_id); if (v) v.categories.push(r.category); });
+    flds.forEach(r => { const v = byId.get(r.club_id); if (v) v.fields.push(r.field_label); });
 
-    sf.forEach((r) => byId.get(r.club_id)?.subfield.push(r.label));
-    md.forEach((r) => byId.get(r.club_id)?.meeting_days.push(r.name));
-    cats.forEach((r) => byId.get(r.club_id)?.categories.push(r.category));
-    fields.forEach((r) => byId.get(r.club_id)?.fields.push(r.field_label));
-    byId.forEach((v) => { if (!v.fields.length && v.subject) v.fields = [v.subject]; });
-
-    res.json({ clubs: [...byId.values()] });
+    byId.forEach(v => { if (!v.fields.length && v.subject) v.fields = [v.subject]; });
+    res.json({ clubs:[...byId.values()] });
   } catch (e) {
     console.error('/api/admin/clubs error:', e.code || e.message);
-    res.status(500).json({ error: 'db_error' });
+    res.status(500).json({ error:'db_error' });
   }
 });
 
-/* ---------------- Admin: approve / edit / delete ---------------- */
 app.post('/api/clubs/:id/approve', async (req, res) => {
-  if (!isAuthorized(req)) return res.status(401).json({ error: 'unauthorized' });
-  try {
-    await pool.query(`UPDATE clubs SET status='approved' WHERE id=?`, [req.params.id]);
-    res.json({ ok: true });
-  } catch (e) {
-    console.error('approve error:', e.code || e.message);
-    res.status(500).json({ error: 'db_error' });
-  }
+  if (!isAuthorized(req)) return res.status(401).json({ error:'unauthorized' });
+  try { await pool.query(`UPDATE clubs SET status='approved' WHERE id=?`, [req.params.id]); res.json({ ok:true }); }
+  catch (e){ console.error('approve error:', e.code || e.message); res.status(500).json({ error:'db_error' }); }
 });
-
 app.patch('/api/clubs/:id', async (req, res) => {
-  if (!isAuthorized(req)) return res.status(401).json({ error: 'unauthorized' });
-
-  // be tolerant if the JSON parser didn’t run / body missing
+  if (!isAuthorized(req)) return res.status(401).json({ error:'unauthorized' });
   const body = (req && req.body && typeof req.body === 'object') ? req.body : {};
   const desc = typeof body.description === 'string' ? body.description : '';
-
-  try {
-    await pool.query(`UPDATE clubs SET description=? WHERE id=?`, [desc, req.params.id]);
-    res.json({ ok: true });
-  } catch (e) {
-    console.error('patch error:', e.code || e.message);
-    res.status(500).json({ error: 'db_error' });
-  }
+  try { await pool.query(`UPDATE clubs SET description=? WHERE id=?`, [desc, req.params.id]); res.json({ ok:true }); }
+  catch (e){ console.error('patch error:', e.code || e.message); res.status(500).json({ error:'db_error' }); }
 });
-
 app.delete('/api/clubs/:id', async (req, res) => {
-  if (!isAuthorized(req)) return res.status(401).json({ error: 'unauthorized' });
-  try {
-    await pool.query(`DELETE FROM clubs WHERE id=?`, [req.params.id]);
-    res.json({ ok: true });
-  } catch (e) {
-    console.error('delete error:', e.code || e.message);
-    res.status(500).json({ error: 'db_error' });
-  }
+  if (!isAuthorized(req)) return res.status(401).json({ error:'unauthorized' });
+  try { await pool.query(`DELETE FROM clubs WHERE id=?`, [req.params.id]); res.json({ ok:true }); }
+  catch (e){ console.error('delete error:', e.code || e.message); res.status(500).json({ error:'db_error' }); }
 });
 
-/* ---------------- Presidents: submit (rate-limited) ---------------- */
+/* ---------------- Presidents: submit ---------------- */
 app.post('/api/presidents/submit', async (req, res) => {
   try {
-    if (rlIsLimited(req, 'pres_submit')) {
-      return res.status(429).json({ error: 'rate_limited' });
-    }
+    if (rlIsLimited(req, 'pres_submit')) return res.status(429).json({ error:'rate_limited' });
 
     const body = req.body || {};
     const expected = process.env.PRESIDENT_PASSWORD || '';
-    if (!body.president_submit_password || body.president_submit_password !== expected) {
+    // Accept either exact or legacy key for the commissioner gate
+    const submitPwd = body.president_submit_password || body.password || '';
+    if (!submitPwd || submitPwd !== expected) {
       rlRecordFailure(req, 'pres_submit');
-      return res.status(401).json({ error: 'unauthorized', reason: 'bad_president_password' });
+      return res.status(401).json({ error:'unauthorized', reason:'bad_president_password' });
     }
-    rlClear(req, 'pres_submit');
+    rlClear(req,'pres_submit');
 
-    const club_name = (body.club_name || '').trim();
-    const president_code = (body.president_code || '').trim();
-    const meeting_frequency = (body.meeting_frequency || '').trim();
-    const meeting_time_type = (body.meeting_time_type || '').trim();
-    const meeting_time_range = (body.meeting_time_range || '').trim();
-    const meeting_room = (body.meeting_room || '').trim();
+    // Accept both new and legacy names for max compatibility
+    const club_name = String(body.club_name || body.name || '').trim();
+    const president_contact = String(body.president_contact || body.contact_email || '').trim();
+    const meeting_frequency = String(body.meeting_frequency || '').trim();
+    const meeting_time_type = String(body.meeting_time_type || '').trim();
+    const meeting_time_range = String(body.meeting_time_range || '').trim();
+    const meeting_room = String(body.meeting_room || '').trim();
     const meeting_days = Array.isArray(body.meeting_days) ? body.meeting_days : [];
     const fields = Array.isArray(body.fields) ? body.fields : [];
-    const categories = (Array.isArray(body.categories) ? body.categories : []).filter((c) =>
-      ALLOWED_CATEGORIES.has(c)
-    );
+    const categories = (Array.isArray(body.categories) ? body.categories : []).filter(c => ALLOWED_CATEGORIES.has(c));
     const subfields = Array.isArray(body.subfields) ? body.subfields : [];
-    const description = (body.description || '').trim();
+    const description = String(body.description || body.desc || '').trim();
     const open_to_all = !!body.open_to_all;
     const prereq_required = !!body.prereq_required;
-    const prerequisites = prereq_required ? (body.prerequisites || '').trim() : '';
+    const prerequisites = prereq_required ? String(body.prerequisites || '').trim() : '';
     const website_url = normalizeWebsiteUrl(body.website_url);
     const volunteer_hours =
       typeof body.volunteer_hours === 'boolean'
-        ? body.volunteer_hours
-          ? 1
-          : 0
-        : String(body.volunteer_hours).toLowerCase() === 'true'
-        ? 1
-        : 0;
+        ? (body.volunteer_hours ? 1 : 0)
+        : String(body.volunteer_hours || '').toLowerCase() === 'true' ? 1 : 0;
 
     const missing = [];
     if (!club_name) missing.push('club_name');
-    if (!president_code) missing.push('president_code');
     if (!meeting_frequency || !MEETING_FREQUENCIES.has(meeting_frequency)) missing.push('meeting_frequency');
     if (!meeting_time_type || !TIME_TYPES.has(meeting_time_type)) missing.push('meeting_time_type');
     if (!meeting_days.length) missing.push('meeting_days');
     if (meeting_time_type === 'after_school' && !meeting_time_range) missing.push('meeting_time_range');
     if (!meeting_room) missing.push('meeting_room');
-    if (missing.length) return res.status(400).json({ error: 'missing_required', fields: missing });
+    if (missing.length) return res.status(400).json({ error:'missing_required', fields: missing });
 
     const words = (description.match(/\S+/g) || []).length;
-    if (words > 200) return res.status(400).json({ error: 'desc_too_long', words });
+    if (words > 200) return res.status(400).json({ error:'desc_too_long', words });
 
-    // Subject = legacy single field; keep for back-compat, but store ALL fields in club_fields.
+    // subject = first field for legacy back-compat
     const subject = (fields[0] || 'Other').trim();
 
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
 
-      const [[existing]] = await conn.query(
-        `SELECT id FROM clubs WHERE name=? AND president_code=?`,
-        [club_name, president_code]
-      );
-
-      let clubId = existing?.id;
+      // Idempotent by exact name (case-sensitive)
+      const [[existing]] = await conn.query(`SELECT id FROM clubs WHERE name=?`, [club_name]);
+      let clubId = existing && existing.id;
 
       if (!clubId) {
         const [ins] = await conn.query(
-          `INSERT INTO clubs
+          `
+          INSERT INTO clubs
            (name, subject, meeting_frequency, meeting_time_type, meeting_time_range, meeting_room,
             open_to_all, prereq_required, prerequisites, description,
-            volunteer_hours, president_code, status, website_url)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            volunteer_hours, president_code, status, website_url, president_contact)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          `,
           [
             club_name,
             subject,
@@ -656,19 +556,22 @@ app.post('/api/presidents/submit', async (req, res) => {
             prerequisites,
             description,
             volunteer_hours,
-            president_code,
+            '',              // president_code kept for legacy schema; unused
             'approved',
             website_url,
+            president_contact || null
           ]
         );
         clubId = ins.insertId;
       } else {
         await conn.query(
-          `UPDATE clubs SET
+          `
+          UPDATE clubs SET
               subject=?, meeting_frequency=?, meeting_time_type=?, meeting_time_range=?, meeting_room=?,
               open_to_all=?, prereq_required=?, prerequisites=?, description=?,
-              volunteer_hours=?, website_url=?
-           WHERE id=?`,
+              volunteer_hours=?, website_url=?, president_contact=?
+           WHERE id=?
+          `,
           [
             subject,
             meeting_frequency,
@@ -681,7 +584,8 @@ app.post('/api/presidents/submit', async (req, res) => {
             description,
             volunteer_hours,
             website_url,
-            clubId,
+            (president_contact || null),
+            clubId
           ]
         );
       }
@@ -690,41 +594,44 @@ app.post('/api/presidents/submit', async (req, res) => {
       await conn.query(`DELETE FROM club_meeting_days WHERE club_id=?`, [clubId]);
       if (meeting_days.length) {
         const rows = meeting_days
-          .map((d) => daysLookup.get(d))
+          .map(d => daysLookup.get(d))
           .filter(Boolean)
-          .map((id) => [clubId, id]);
-        if (rows.length) {
-          await conn.query(`INSERT INTO club_meeting_days (club_id, day_id) VALUES ?`, [rows]);
-        }
+          .map(id => [clubId, id]);
+        if (rows.length) await conn.query(`INSERT INTO club_meeting_days (club_id,day_id) VALUES ?`, [rows]);
       }
 
       // subfields
       for (const label of subfields) {
         await conn.query(`INSERT IGNORE INTO subfields (label) VALUES (?)`, [label]);
       }
-      const [sfrows] = subfields.length
-        ? await conn.query(`SELECT id,label FROM subfields WHERE label IN (?)`, [subfields])
-        : [[]];
+      let sfrows = [];
+      if (subfields.length) {
+        const [rowsSF] = await conn.query(
+          `SELECT id, label FROM subfields WHERE label IN (?)`,
+          [subfields]
+        );
+        sfrows = rowsSF;
+      }
       await conn.query(`DELETE FROM club_subfields WHERE club_id=?`, [clubId]);
       if (sfrows.length) {
-        const vals = sfrows.map((r) => [clubId, r.id]);
+        const vals = sfrows.map(r => [clubId, r.id]);
         await conn.query(`INSERT INTO club_subfields (club_id, subfield_id) VALUES ?`, [vals]);
       }
 
       // categories
       await conn.query(`DELETE FROM club_categories WHERE club_id=?`, [clubId]);
       if (categories.length) {
-        const vals = categories.map((c) => [clubId, c]);
+        const vals = categories.map(c => [clubId, c]);
         await conn.query(`INSERT INTO club_categories (club_id, category) VALUES ?`, [vals]);
       }
 
-      // fields (allow multiple focuses)
+      // fields (multiple focuses)
       await conn.query(`DELETE FROM club_fields WHERE club_id=?`, [clubId]);
       if (fields.length) {
         const vals = fields
-          .map((f) => String(f).trim())
+          .map(f => String(f).trim())
           .filter(Boolean)
-          .map((f) => [clubId, f]);
+          .map(f => [clubId, f]);
         if (vals.length) {
           await conn.query(`INSERT INTO club_fields (club_id, field_label) VALUES ?`, [vals]);
         }
@@ -735,6 +642,10 @@ app.post('/api/presidents/submit', async (req, res) => {
     } catch (e) {
       await conn.rollback();
       console.error('/api/presidents/submit tx error:', e.code || e.message);
+      // Duplicate name protection (if unique(name) is present and an insert races)
+      if (e && (e.code === 'ER_DUP_ENTRY' || /Duplicate entry/.test(String(e.message)))) {
+        return res.status(409).json({ error: 'duplicate_name' });
+      }
       res.status(500).json({ error: 'db_error', mysql_code: e.code, mysql_message: e.sqlMessage });
     } finally {
       conn.release();
@@ -745,22 +656,7 @@ app.post('/api/presidents/submit', async (req, res) => {
   }
 });
 
-/* ---------------- Start ---------------- */
-console.log('[server] publicDir =', publicDir);
-console.log('[server] index exists =', fs.existsSync(path.join(publicDir, 'index.html')));
-
-const host = '0.0.0.0';           // IMPORTANT for containers
-app.listen(port, host, () => {
-  console.log(`Server running: http://${host}:${port}`);
+/* ---------------- Start server ---------------- */
+app.listen(port, () => {
+  console.log(`✅ Server listening at http://localhost:${port}`);
 });
-
-// optional: log if Railway stops us
-process.on('SIGTERM', () => {
-  console.log('[server] got SIGTERM (likely healthcheck failed or redeploy) – shutting down…');
-  process.exit(0);
-});
-process.on('SIGINT', () => {
-  console.log('[server] got SIGINT – shutting down…');
-  process.exit(0);
-});
-

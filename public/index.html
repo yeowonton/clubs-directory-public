@@ -19,11 +19,12 @@
   <meta name="theme-color" content="#e91e63">
 </head>
 <body class="bg-white text-black">
+  <!-- Header -->
   <header class="relative text-white border-b-4 border-brand bg-gradient-to-r from-black via-neutral-900 to-black">
     <div class="pointer-events-none absolute inset-0 opacity-20"
          style="background-image: radial-gradient(600px 200px at 50% -40px, rgba(233,30,99,.25), transparent);"></div>
     <div class="max-w-6xl mx-auto flex items-center justify-center py-7 px-4">
-      <!-- Logo (hide on phones to avoid overlap) -->
+      <!-- Logo -->
       <div class="absolute left-4 top-1/2 -translate-y-1/2 hidden sm:block">
         <a href="./index.html" aria-label="Home" class="pointer-events-auto">
           <img src="/logo.jpg" alt="Troy High Logo"
@@ -31,7 +32,7 @@
                style="border-color:#dc143c" />
         </a>
       </div>
-      <!-- Centered fancy title -->
+      <!-- Center title -->
       <div class="text-center">
         <h1 class="m-0 font-extrabold text-3xl sm:text-4xl font-display bg-gradient-to-r from-brand to-brand700 bg-clip-text text-transparent">
           Troy High Clubs Directory
@@ -41,6 +42,7 @@
     </div>
   </header>
 
+  <!-- Navbar -->
   <nav class="bg-neutral-100 border-b border-neutral-300 flex flex-wrap gap-4 justify-center px-4 py-2">
     <a class="font-bold hover:text-brand" href="./index.html">All Clubs</a>
     <a class="font-bold hover:text-brand" href="./presidents.html">President Submission</a>
@@ -91,7 +93,7 @@
           </select>
         </label>
 
-        <!-- STEM Subfield (conditional) -->
+        <!-- STEM Subfield -->
         <label id="subfieldWrap" class="block hidden md:col-span-1">
           <span class="text-xs font-semibold text-neutral-600">STEM Subfield</span>
           <select id="subfield" class="mt-1 w-full h-10 text-sm border border-neutral-300 rounded-lg px-3">
@@ -118,6 +120,12 @@
             <label class="inline-flex items-center gap-2 px-3 h-9 rounded-full border border-neutral-300 cursor-pointer select-none">
               <input type="checkbox" name="days" value="Friday" class="accent-brand"><span class="text-sm">Friday</span>
             </label>
+            <label class="inline-flex items-center gap-2 px-3 h-9 rounded-full border border-neutral-300 cursor-pointer select-none">
+              <input type="checkbox" name="days" value="Saturday" class="accent-brand"><span class="text-sm">Saturday</span>
+            </label>
+            <label class="inline-flex items-center gap-2 px-3 h-9 rounded-full border border-neutral-300 cursor-pointer select-none">
+              <input type="checkbox" name="days" value="Sunday" class="accent-brand"><span class="text-sm">Sunday</span>
+            </label>
           </div>
         </fieldset>
       </form>
@@ -126,6 +134,7 @@
     <!-- Results -->
     <section id="clubList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></section>
 
+    <!-- Footer -->
     <footer class="text-center text-neutral-600 mt-10 relative">
       <a class="text-brand font-bold" href="./TWEB/" target="_blank" rel="noopener">Troy Web Dev</a> •
       <a class="underline" href="mailto:yeowonyoon0109@gmail.com">yeowonyoon0109@gmail.com</a>
@@ -133,6 +142,7 @@
     </footer>
   </main>
 
+  <!-- JS -->
   <script type="module">
     import { initIndex } from './app.js';
     initIndex();
