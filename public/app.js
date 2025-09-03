@@ -340,12 +340,12 @@ export function initIndex() {
     html +=       locationRow;
     if (contactRow) html += contactRow;
     if (reqChips || prereqDetail) html += '<div class="space-y-1">' + labelHTML('Eligibility & Perks') + '<div class="flex flex-wrap gap-2 items-center">' + reqChips + '</div>' + prereqDetail + '</div>';
-    html +=       '<div class="space-y-1">' + labelHTML('Description') +
-                    '<p class="text-neutral-800 leading-relaxed whitespace-pre-line" data-desc-full="' + encodeURIComponent(fullDesc) + '">'
-                      esc(shortDesc) +
-                      (fullDesc.length > 280 ? ' <button class="ml-1 underline text-brand text-xs" data-more>More</button>' : '') +
-                    '</p>' +
-                  '</div>';
+    html += '<div class="space-y-1">' + labelHTML('Description') +
+            '<p class="text-neutral-800 leading-relaxed whitespace-pre-line" style="white-space:pre-line;" data-desc-full="' + encodeURIComponent(fullDesc) + '">' +
+              esc(shortDesc) +
+              (fullDesc.length > 280 ? ' <button class="ml-1 underline text-brand text-xs" data-more>More</button>' : '') +
+            '</p>' +
+          '</div>';
     html +=     '</div>';
     html +=   '</div>';
     html += '</article>';
