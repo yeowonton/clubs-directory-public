@@ -341,7 +341,7 @@ export function initIndex() {
     if (contactRow) html += contactRow;
     if (reqChips || prereqDetail) html += '<div class="space-y-1">' + labelHTML('Eligibility & Perks') + '<div class="flex flex-wrap gap-2 items-center">' + reqChips + '</div>' + prereqDetail + '</div>';
     html +=       '<div class="space-y-1">' + labelHTML('Description') +
-                    '<p class="text-neutral-800 leading-relaxed whitespace-pre-line" data-desc-full="' + encodeURIComponent(fullDesc) + '">' +
+                    '<p class="text-neutral-800 leading-relaxed" data-desc-full="' + encodeURIComponent(fullDesc) + '">' +
                       esc(shortDesc) +
                       (fullDesc.length > 280 ? ' <button class="ml-1 underline text-brand text-xs" data-more>More</button>' : '') +
                     '</p>' +
@@ -762,17 +762,15 @@ export function initAdmin() {
     function successStoreAndLoad(hashUsed) {
       if (hashUsed) {
         localStorage.setItem('ADMIN_HASH', hashUsed);
-        sessionStorage.removeItem('ADMIN_CODE');
+        localStorage.removeItem('ADMIN_CODE');
       } else {
-        // only keep plaintext for this session (don’t persist across reloads)
-        sessionStorage.setItem('ADMIN_CODE', code);
+        localStorage.setItem('ADMIN_CODE', code);
         localStorage.removeItem('ADMIN_HASH');
       }
-      if (loginSection) loginSection.classList.add('hidden');
+      loginSection.classList.add('hidden');
       panel.classList.remove('hidden');
       load();
     }
-
 
     function tryHeaderFallback() {
       return fetchText(API_BASE + '/api/admin/clubs', {
@@ -807,7 +805,7 @@ export function initAdmin() {
 
   function authHeaders() {
     var h = {};
-    var code = sessionStorage.getItem('ADMIN_CODE') || '';
+    var code = localStorage.getItem('ADMIN_CODE') || '';
     var hash = localStorage.getItem('ADMIN_HASH') || '';
     if (hash) h['x-admin-hash'] = hash;
     if (code) h['x-admin-code'] = code;
@@ -908,28 +906,12 @@ export function initAdmin() {
   }
 
   // Auto-auth if credentials are already stored
-  // Verify stored creds before showing the panel
   (function autoAuth() {
-    var hash = localStorage.getItem('ADMIN_HASH');
-    var code = sessionStorage.getItem('ADMIN_CODE'); // note: sessionStorage (see #2)
-    if (!hash && !code) return;
-
-    var headers = {};
-    if (hash) headers['x-admin-hash'] = hash;
-    if (code) headers['x-admin-code'] = code;
-
-    _fetchJSON(API_BASE + '/api/admin/clubs', { headers: headers })
-      .then(function () {
-        // only now show the panel
-        if (loginSection) loginSection.classList.add('hidden');
-        panel.classList.remove('hidden');
-        load();
-      })
-      .catch(function () {
-        // creds invalid; clear and keep login visible
-        localStorage.removeItem('ADMIN_HASH');
-        sessionStorage.removeItem('ADMIN_CODE');
-      });
+    var hasHash = !!localStorage.getItem('ADMIN_HASH');
+    var hasCode = !!localStorage.getItem('ADMIN_CODE');
+    if (!hasHash && !hasCode) return;
+    if (loginSection) loginSection.classList.add('hidden');
+    panel.classList.remove('hidden');
+    load();
   })();
-
 }
