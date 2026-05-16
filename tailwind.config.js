@@ -3,7 +3,13 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: { display: ['"Playfair Display"', 'serif'] },
-      colors: { brand:'#e91e63', brand600:'#d81b60', brand700:'#c2185b' },
+      colors: {
+        brand:   '#dc143c', // classic crimson
+        brand500:'#c11235',
+        brand600:'#a50f2d',
+        brand700:'#8b0c25',
+        brand800:'#72081d',
+      }
     },
   },
   plugins: [],

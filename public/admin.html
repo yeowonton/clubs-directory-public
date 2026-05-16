@@ -1,107 +1,172 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Admin – Troy High Clubs Directory</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8">
 
-  <!-- Tailwind (built locally to /public/styles.css) -->
-  <link href="/styles.css" rel="stylesheet">
+  <style>
+    :root {
+      --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+                  Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    body { font-family: var(--font-sans); }
+    h1, h2, h3, h4, .title-font {
+      font-family: var(--font-sans) !important;
+      font-weight: 800;
+    }
+  </style>
 
-  <!-- Fancy title font -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700..900&display=swap" rel="stylesheet" />
+  <title>Admin Panel — Troy Clubs Directory</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <!-- Tailwind -->
+  <link rel="stylesheet" href="/styles.css">
+
+  <!-- Icons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/images/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <meta name="theme-color" content="#e91e63">
+
+  <!-- Security: note X-Frame-Options must be set as an HTTP header, not meta -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                style-src 'self' 'unsafe-inline';
+                font-src 'self';
+                script-src 'self';
+                img-src 'self' data:;
+                connect-src 'self';
+                object-src 'none';
+                base-uri 'self';
+                form-action 'self';">
 </head>
-<body class="bg-white text-black">
-  <!-- Header -->
-  <header class="relative text-white border-b-4 border-brand bg-gradient-to-r from-black via-neutral-900 to-black">
-    <div class="pointer-events-none absolute inset-0 opacity-20"
-         style="background-image: radial-gradient(600px 200px at 50% -40px, rgba(233,30,99,.25), transparent);"></div>
-    <div class="max-w-6xl mx-auto flex items-center justify-center py-7 px-4">
-      <!-- Logo -->
-      <div class="absolute left-4 top-1/2 -translate-y-1/2 hidden sm:block">
-        <a href="./index.html" aria-label="Home" class="pointer-events-auto">
-          <img src="/logo.jpg" alt="Troy High Logo"
-               class="w-16 h-16 sm:w-20 sm:h-20 rounded-xl border object-cover"
-               style="border-color:#dc143c" />
-        </a>
-      </div>
-      <!-- Title -->
-      <div class="text-center">
-        <h1 class="font-extrabold text-3xl sm:text-4xl font-display bg-gradient-to-r from-brand to-brand700 bg-clip-text text-transparent">
-          Admin Dashboard
+
+<body class="bg-neutral-100 text-neutral-900">
+
+  <!-- HEADER -->
+  <header class="bg-gradient-to-r from-black via-neutral-900 to-black text-white border-b-4 border-brand shadow-lg">
+    <div class="max-w-6xl mx-auto py-6 px-4 flex items-center justify-between gap-4">
+      <!-- Left: Title -->
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-extrabold font-wdxl text-brand tracking-tight">
+          Admin Panel
         </h1>
-        <p class="opacity-90 mt-1 text-sm sm:text-base">Manage all clubs and submissions</p>
+        <p class="text-sm text-neutral-200 mt-1">
+          Review, approve, and edit clubs for the Troy Clubs Directory.
+        </p>
       </div>
+
+      <!-- Right: Logout button -->
+      <button id="logoutBtn"
+              class="hidden px-4 py-2 rounded-xl bg-brand text-white font-semibold hover:bg-opacity-90 transition">
+        Logout
+      </button>
     </div>
   </header>
 
-  <!-- Navbar -->
+  <!-- NAVBAR -->
   <nav class="bg-neutral-100 border-b border-neutral-300 flex flex-wrap gap-4 justify-center px-4 py-2">
     <a class="font-bold hover:text-brand" href="./index.html">All Clubs</a>
     <a class="font-bold hover:text-brand" href="./presidents.html">President Submission</a>
-    <a class="font-bold hover:text-brand" href="./admin.html">Admin</a>
+    <a class="font-bold hover:text-brand text-brand" href="./admin.html">Admin</a>
   </nav>
 
-  <main class="max-w-6xl mx-auto p-5">
-    <!-- Login form -->
-    <section id="adminLogin" class="bg-neutral-50 border border-neutral-300 rounded-2xl p-6 shadow-sm">
-      <h2 class="text-xl font-extrabold font-display border-l-4 border-brand pl-3 mb-4">Admin Login</h2>
-      <form class="space-y-5">
-        <label class="block">
-          <span class="text-sm font-semibold text-neutral-700">Admin Code</span>
-          <input type="password" name="code" required class="mt-1 w-full border border-neutral-300 rounded-lg px-3 py-2" placeholder="Enter admin code" />
-        </label>
-        <button type="submit" class="mt-2 bg-brand hover:bg-brand600 text-white font-bold px-4 py-2 rounded-lg shadow-sm">
-          Login
+  <!-- ADMIN LOGIN SECTION -->
+  <section id="adminLogin"
+           class="max-w-md mx-auto mt-16 bg-white shadow-xl p-8 rounded-2xl border border-neutral-200">
+
+    <h2 class="text-xl font-semibold mb-2">Admin Login</h2>
+    <p class="text-neutral-600 mb-6 text-sm leading-relaxed">
+      Enter the admin access code to view and manage club submissions.
+    </p>
+
+    <form class="space-y-4">
+      <div>
+        <input name="code"
+               type="password"
+               placeholder="Enter admin code"
+               required
+               class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-brand focus:outline-none">
+      </div>
+
+      <button type="submit"
+              class="w-full py-2 font-semibold bg-brand text-white rounded-xl hover:bg-opacity-90 transition">
+        Login
+      </button>
+    </form>
+
+    <p class="mt-4 text-xs text-neutral-500 leading-relaxed">
+      For security, your session will automatically expire after a period of inactivity.
+    </p>
+  </section>
+
+  <!-- ADMIN PANEL (Hidden until login / auto-auth) -->
+  <section id="adminPanel" class="hidden max-w-7xl mx-auto mt-10 px-4 pb-20">
+
+    <!-- Top bar -->
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div>
+        <h2 class="text-xl font-bold tracking-tight">Club Management</h2>
+        <p class="text-sm text-neutral-600">
+          Use the tabs to switch between pending requests and approved clubs.
+        </p>
+      </div>
+
+      <!-- Danger actions -->
+      <div class="flex items-center gap-2">
+        <!-- Shown when "Pending" tab is active -->
+        <button id="deleteAllPending"
+                class="px-4 py-2 rounded-xl border-2 border-red-500 text-red-600 text-sm font-semibold hover:bg-red-50 transition">
+          Delete All Pending Requests
         </button>
-      </form>
-    </section>
 
-    <!-- Admin panel (hidden until login) -->
-    <section id="adminPanel" class="hidden mt-8">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-xl font-extrabold font-display border-l-4 border-brand pl-3">All Clubs</h2>
+        <!-- Shown when "Approved" tab is active -->
+        <button id="deleteAllApproved"
+                class="hidden px-4 py-2 rounded-xl border-2 border-red-600 text-red-600 text-sm font-semibold hover:bg-red-50 transition">
+          Delete All Approved Clubs
+        </button>
       </div>
-      <div class="overflow-x-auto bg-white border border-neutral-300 rounded-xl shadow-sm">
-        <table class="w-full text-sm">
-          <thead class="bg-neutral-100 border-b border-neutral-300 text-left">
-            <tr>
-              <th class="px-3 py-2">Name</th>
-              <th class="px-3 py-2">President Contact</th>
-              <th class="px-3 py-2">Website</th>
-              <th class="px-3 py-2">Days</th>
-              <th class="px-3 py-2">Room</th>
-              <th class="px-3 py-2">Status</th>
-              <th class="px-3 py-2">Description</th>
-              <th class="px-3 py-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="adminTableBody" class="divide-y divide-neutral-200">
-            <!-- Populated by app.js -->
-          </tbody>
-        </table>
-      </div>
-    </section>
+    </div>
 
-    <!-- Footer -->
-    <footer class="text-center text-neutral-600 mt-10 relative">
-      <a class="text-brand font-bold" href="./TWEB/" target="_blank" rel="noopener">Troy Web Dev</a> •
-      <a class="underline" href="mailto:yeowonyoon0109@gmail.com">yeowonyoon0109@gmail.com</a>
-      <span class="invisible absolute -bottom-2 left-1/2 -translate-x-1/2 text-[10px] select-none">made by Yeowon Yoon</span>
-    </footer>
-  </main>
+    </div>
 
-  <!-- JS -->
-  <script type="module">
-    import { initAdmin } from './app.js?v=2025-09-02-4';
-    initAdmin();
-  </script>
+    <!-- Tabs -->
+    <div class="flex gap-4 mb-6">
+      <button data-tab="pending"
+              class="tab-btn px-6 py-3 rounded-2xl font-bold border-2 transition">
+        Pending Requests
+      </button>
+
+      <button data-tab="approved"
+              class="tab-btn px-6 py-3 rounded-2xl font-bold border-2 transition">
+        Approved Clubs
+      </button>
+    </div>
+
+    <!-- Status / success banner placeholder (admin.js will inject #adminStatus here) -->
+
+    <!-- Table wrapper -->
+    <div class="overflow-x-auto bg-white shadow-lg rounded-xl border border-neutral-200">
+      <table class="min-w-full text-sm">
+        <thead class="bg-neutral-100 text-neutral-800">
+          <tr>
+            <th class="px-3 py-2 text-left">Club</th>
+            <th class="px-3 py-2 text-left">Contact</th>
+            <th class="px-3 py-2 text-left">Website</th>
+            <th class="px-3 py-2 text-left">Meeting Days</th>
+            <th class="px-3 py-2 text-left">Room</th>
+            <th class="px-3 py-2 text-left">Status</th>
+            <th class="px-3 py-2 text-left">Description</th>
+            <th class="px-3 py-2 text-left">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="adminTableBody">
+          <!-- Filled by admin.js -->
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SCRIPT -->
+  <script type="module" src="/assets/js/admin.js"></script>
 </body>
 </html>

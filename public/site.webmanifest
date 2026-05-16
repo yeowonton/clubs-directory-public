@@ -1,0 +1,7 @@
+{
+  "name": "Club Directory",
+  "short_name": "Clubs",
+  "start_url": "/",
+  "display": "standalone",
+  "icons": []
+}
